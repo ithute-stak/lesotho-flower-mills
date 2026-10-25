@@ -4,9 +4,12 @@ import { api, type Product } from "./api";
 const tabs = ["Home","Shop","Orders","Account"] as const;
 type Tab = typeof tabs[number];
 type AuthMode = "register"|"login";
+type Quote = {id:string;quotation_number:string;status:string;subtotal:string;currency:string};
 export default function Home(){
   const [tab,setTab]=useState<Tab>("Home");
   const [products,setProducts]=useState<Product[]>([]);
+  const [quantities,setQuantities]=useState<Record<string,number>>({});
+  const [quotes,setQuotes]=useState<Quote[]>([]);
   const [error,setError]=useState("");
   const [loading,setLoading]=useState(false);
   const [authMode,setAuthMode]=useState<AuthMode>("register");
@@ -16,6 +19,22 @@ export default function Home(){
   const [kind,setKind]=useState<"individual"|"business">("individual");
   const [notice,setNotice]=useState("");
   useEffect(()=>{if(tab!=="Shop")return;let alive=true;setLoading(true);setError("");api<Product[]>("/api/v1/products").then(items=>{if(alive)setProducts(items)}).catch((e:Error)=>{if(alive)setError(e.message)}).finally(()=>{if(alive)setLoading(false)});return()=>{alive=false}},[tab]);
+  async function requestQuote(){setError("");setNotice("");setLoading(true);try{
+    const token=sessionStorage.getItem("lfm_access_token");
+    if(!token)throw new Error("Please sign in through Account first.");
+    const items=Object.entries(quantities).filter(([,qty])=>qty>0).map(([product_id,quantity])=>({product_id,quantity}));
+    if(items.length===0)throw new Error("Choose at least one product quantity.");
+    const response=await api<{quotation_number:string}>("/api/v1/my/quotations",{method:"POST",
+      headers:{"Authorization":"Bearer "+token},body:JSON.stringify({items})});
+    setNotice("Draft quotation created: "+response.quotation_number);
+    setQuantities({});
+  }catch(e){setError(e instanceof Error?e.message:"Quotation could not be created");}finally{setLoading(false)}}
+  async function loadQuotes(){setError("");try{
+    const token=sessionStorage.getItem("lfm_access_token");
+    if(!token)throw new Error("Please sign in through Account first.");
+    const response=await api<Quote[]>("/api/v1/my/quotations",{headers:{"Authorization":"Bearer "+token}});
+    setQuotes(response);
+  }catch(e){setError(e instanceof Error?e.message:"Could not load quotations");}}
   async function submit(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();setNotice("");setError("");setLoading(true);
     try{
@@ -35,8 +54,8 @@ export default function Home(){
     {tab==="Home"&&<section className="panel hero"><span className="eyebrow">CUSTOMER PORTAL</span><h2>From our mills to your doorstep.</h2><p>Discover products and request competitive quantity-based prices.</p><button onClick={()=>setTab("Shop")}>Explore products</button></section>}
     {tab==="Shop"&&<section className="panel"><h2>Available products</h2><p>Only products published by LFM will appear below. Pricing is not displayed until approved price books are connected.</p>
       {loading&&<p role="status">Loading catalogue…</p>}{!loading&&!error&&products.length===0&&<p>No products are published yet.</p>}
-      <div className="product-grid">{products.map(p=><article className="product-card" key={p.id}><span className="eyebrow">{p.sku}</span><h3>{p.name}</h3><p>Unit: {p.stock_unit}</p><span className="subtle">Price on request</span></article>)}</div></section>}
-    {tab==="Orders"&&<section className="panel"><h2>My orders</h2><p>Customer orders and delivery status will appear here once the sales module is enabled.</p><button onClick={()=>setTab("Account")}>Manage account</button></section>}
+      <div className="product-grid">{products.map(p=><article className="product-card" key={p.id}><span className="eyebrow">{p.sku}</span><h3>{p.name}</h3><p>Unit: {p.stock_unit}</p><span className="subtle">Price confirmed through approved quotation</span><label htmlFor={"qty-"+p.id}>Quantity</label><input id={"qty-"+p.id} type="number" min={0} max={1000000} value={quantities[p.id]??0} onChange={e=>setQuantities(prev=>({...prev,[p.id]:Math.max(0,Math.floor(Number(e.target.value)||0))}))}/></article>)}</div><button type="button" disabled={loading||products.length===0} onClick={()=>void requestQuote()}>Request draft quotation</button><p>Draft requests do not reserve stock or confirm an order.</p></section>}
+    {tab==="Orders"&&<section className="panel"><h2>My quotations</h2><p>Draft quotations are estimates only, not confirmed orders. Payments and delivery tracking will be added later.</p><button onClick={()=>void loadQuotes()}>Load my quotations</button><ul className="listing">{quotes.map(q=><li key={q.id}><strong>{q.quotation_number}</strong> — {q.status} · {q.currency} {q.subtotal}</li>)}</ul><button onClick={()=>setTab("Account")}>Manage account</button></section>}
     {tab==="Account"&&<section className="panel"><h2>{authMode==="register"?"Create an account":"Sign in"}</h2><p>Individuals can create customer accounts. Business profiles require staff approval.</p>
       <div className="switcher"><button type="button" aria-pressed={authMode==="register"} onClick={()=>{setAuthMode("register");setError("");setNotice("")}}>Register</button><button type="button" aria-pressed={authMode==="login"} onClick={()=>{setAuthMode("login");setError("");setNotice("")}}>Sign in</button></div>
       <form onSubmit={submit}>
