@@ -11,6 +11,7 @@ from .orders import router as orders_router
 from .warehouse_ops import router as warehouse_router
 from .fulfilment import router as fulfilment_router
 from .payment_authorisation import router as payment_router
+from .payment_gateway import router as gateway_router
 
 app = FastAPI(title="Lesotho Flour Mills API", description="Hybrid B2C/B2B commerce and distribution platform", version="0.4.0")
 app.include_router(commerce_router)
@@ -25,6 +26,7 @@ app.include_router(orders_router)
 app.include_router(warehouse_router)
 app.include_router(fulfilment_router)
 app.include_router(payment_router)
+app.include_router(gateway_router)
 
 
 @app.get("/health", tags=["system"])
