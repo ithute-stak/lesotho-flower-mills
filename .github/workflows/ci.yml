@@ -15,9 +15,12 @@ jobs:
       - run: PYTHONPATH=backend pytest -q backend/tests
   web:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [customer-web, admin-web]
     defaults:
       run:
-        working-directory: apps/customer-web
+        working-directory: apps/${{ matrix.app }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
