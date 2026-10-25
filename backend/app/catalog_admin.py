@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .db import db_session
-from .security import current_identity, require_staff
+from .authorization import staff_identity
 
 router = APIRouter(prefix="/api/v1", tags=["catalog-admin"])
 
@@ -30,8 +30,7 @@ def products(db: Session = Depends(db_session)):
 
 
 @router.post("/admin/products", status_code=201)
-def add_product(body: ProductInput, identity: dict = Depends(current_identity), db: Session = Depends(db_session)):
-    require_staff(identity)
+def add_product(body: ProductInput, identity: dict = Depends(staff_identity), db: Session = Depends(db_session)):
     product_id = str(uuid4())
     try:
         db.execute(text("INSERT INTO catalog.products (id,sku,name,stock_unit) VALUES (:id,:sku,:name,:unit)"),
@@ -44,8 +43,7 @@ def add_product(body: ProductInput, identity: dict = Depends(current_identity), 
 
 
 @router.post("/admin/price-books", status_code=201)
-def add_price_book(body: PriceBookInput, identity: dict = Depends(current_identity), db: Session = Depends(db_session)):
-    require_staff(identity)
+def add_price_book(body: PriceBookInput, identity: dict = Depends(staff_identity), db: Session = Depends(db_session)):
     book_id = str(uuid4())
     try:
         db.execute(text("INSERT INTO pricing.price_books (id,code,name,active) VALUES (:id,:code,:name,false)"),
