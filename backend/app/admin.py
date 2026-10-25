@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from .db import db_session
-from .security import current_identity, require_staff
+from .authorization import staff_identity
 
 router = APIRouter(prefix="/api/v1/admin", tags=["administration"])
 
@@ -25,8 +25,7 @@ class PriceItemInput(BaseModel):
 
 
 @router.get("/businesses/pending")
-def pending_businesses(identity: dict = Depends(current_identity), db: Session = Depends(db_session)):
-    require_staff(identity)
+def pending_businesses(identity: dict = Depends(staff_identity), db: Session = Depends(db_session)):
     rows = db.execute(text("""SELECT id,customer_number,display_name,created_at
                               FROM crm.customers WHERE customer_type='business'
                               AND verification_status='pending' ORDER BY created_at DESC LIMIT 100""")).mappings().all()
@@ -34,15 +33,13 @@ def pending_businesses(identity: dict = Depends(current_identity), db: Session =
 
 
 @router.get("/price-books")
-def price_books(identity: dict = Depends(current_identity), db: Session = Depends(db_session)):
-    require_staff(identity)
+def price_books(identity: dict = Depends(staff_identity), db: Session = Depends(db_session)):
     rows = db.execute(text("SELECT id,code,name,currency,active FROM pricing.price_books ORDER BY name LIMIT 100")).mappings().all()
     return [dict(row) for row in rows]
 
 
 @router.post("/price-books/{book_id}/items", status_code=201)
-def create_price_item(book_id: str, body: PriceItemInput, identity: dict = Depends(current_identity), db: Session = Depends(db_session)):
-    require_staff(identity)
+def create_price_item(book_id: str, body: PriceItemInput, identity: dict = Depends(staff_identity), db: Session = Depends(db_session)):
     if body.method not in {"fixed_bundle", "volume_all_units"}:
         raise HTTPException(422, "Unsupported pricing method")
     minimums = [tier.minimum_quantity for tier in body.tiers]
