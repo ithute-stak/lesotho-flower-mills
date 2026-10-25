@@ -102,3 +102,24 @@ def movements(identity:dict=Depends(staff_identity),db:Session=Depends(db_sessio
          reference,actor_id,created_at FROM inventory.stock_movements
          ORDER BY created_at DESC LIMIT 200""")).mappings().all()
     return [dict(r) for r in rows]
+
+@router.post("/reservations/{reservation_id}/release")
+def release_reservation(reservation_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+    """Release an active reservation atomically; prevents duplicate release."""
+    row=db.execute(text("""SELECT warehouse_id,product_id,quantity,status
+      FROM inventory.stock_reservations WHERE id=:id FOR UPDATE"""),
+      {"id":reservation_id}).mappings().first()
+    if not row:
+        raise HTTPException(404,"Reservation not found")
+    if row["status"]!="active":
+        raise HTTPException(409,"Reservation is not active")
+    db.execute(text("""UPDATE inventory.stock_balances SET reserved=reserved-:quantity
+      WHERE warehouse_id=:warehouse AND product_id=:product AND reserved>=:quantity"""),
+      {"warehouse":row["warehouse_id"],"product":row["product_id"],"quantity":row["quantity"]})
+    result=db.execute(text("""UPDATE inventory.stock_reservations SET status='released'
+      WHERE id=:id AND status='active'"""),{"id":reservation_id})
+    if result.rowcount!=1:
+        db.rollback()
+        raise HTTPException(409,"Reservation already processed")
+    db.commit()
+    return {"id":str(reservation_id),"status":"released"}
