@@ -23,3 +23,16 @@ def approve(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depen
  # Existing JWT roles and policy snapshots are not independently verified.
  # Fail closed: do not allow staff to approve a payable amount yet.
  raise HTTPException(409,"Final approval disabled until validated tax policy, tariff snapshots and central role verification exist")
+
+@router.get("/{order_id}/readiness")
+def readiness(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+ from .financial_readiness import assess
+ order=db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id"),{"id":order_id}).mappings().first()
+ if not order:raise HTTPException(404,"Order not found")
+ total=db.execute(text("""SELECT review_status,total,currency,policy_reference FROM finance.order_totals
+ WHERE sales_order_id=:id"""),{"id":order_id}).mappings().first()
+ # Policy lineage is not yet FK-bound; fail closed rather than assuming a text reference proves approval.
+ check=db.execute(text("""SELECT amount,currency FROM finance.checkout_sessions
+ WHERE sales_order_id=:id ORDER BY created_at DESC LIMIT 1"""),{"id":order_id}).mappings().first()
+ result=assess(order,total,None,check)
+ return {"ready":result.ready,"blockers":list(result.blockers),"financial_approval_enabled":False}
