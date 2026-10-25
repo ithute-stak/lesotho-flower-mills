@@ -6,6 +6,8 @@ from .admin import router as admin_router
 from .pricing_publication import router as pricing_publication_router
 from .quotations import router as quotations_router
 from .customer_quotes import router as customer_quote_router
+from .stock import router as stock_router
+from .orders import router as orders_router
 
 app = FastAPI(title="Lesotho Flour Mills API", description="Hybrid B2C/B2B commerce and distribution platform", version="0.4.0")
 app.include_router(commerce_router)
@@ -15,6 +17,8 @@ app.include_router(admin_router)
 app.include_router(pricing_publication_router)
 app.include_router(quotations_router)
 app.include_router(customer_quote_router)
+app.include_router(stock_router)
+app.include_router(orders_router)
 
 
 @app.get("/health", tags=["system"])
