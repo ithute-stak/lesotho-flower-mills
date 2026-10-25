@@ -41,17 +41,37 @@ def start_checkout(body:CheckoutStart,identity:dict=Depends(staff_identity),db:S
  if not approved or approved["review_status"]!="approved" or approved["currency"]!="LSL":
   raise HTTPException(409,"Independently approved gross order total required")
  if Decimal(approved["total"])<=0:raise HTTPException(422,"Invalid payable amount")
- # A unique key is retained locally for future reconciliation and retries.
- prior=db.execute(text("""SELECT provider_session_id,state FROM finance.checkout_sessions
- WHERE sales_order_id=:id ORDER BY created_at DESC LIMIT 1"""),{"id":body.order_id}).mappings().first()
- if prior:raise HTTPException(409,"Checkout already created; use status check")
+ # Persist an attempt BEFORE calling IthutePay. Unknown outcomes are never retried blindly.
+ from sqlalchemy.exc import IntegrityError
+ attempt=db.execute(text("""SELECT state,provider_session_id FROM finance.checkout_attempts
+ WHERE sales_order_id=:id FOR UPDATE"""),{"id":body.order_id}).mappings().first()
+ if attempt:
+  raise HTTPException(409,"Checkout already initiated; reconcile the prior attempt before retrying")
  session_id=uuid4()
  idempotency_key="lfm-"+str(session_id)
  try:
+  db.execute(text("""INSERT INTO finance.checkout_attempts
+  (id,sales_order_id,idempotency_key,state,amount,currency,created_by)
+  VALUES (:id,:order,:key,'initiating',:amount,'LSL',:actor)"""),
+  {"id":session_id,"order":body.order_id,"key":idempotency_key,
+   "amount":approved["total"],"actor":identity["sub"]})
+  db.commit()
+ except IntegrityError:
+  db.rollback()
+  raise HTTPException(409,"Checkout attempt already exists; reconcile before retrying")
+ try:
   with httpx.Client() as client:
-   session=adapter(client).create_checkout(CheckoutRequest(order["order_number"],Decimal(approved["total"])),idempotency_key=idempotency_key)
+   session=adapter(client).create_checkout(
+    CheckoutRequest(order["order_number"],Decimal(approved["total"])),
+    idempotency_key=idempotency_key)
  except (httpx.HTTPError,ValueError) as exc:
-  db.rollback();raise HTTPException(502,"Payment service unavailable or inconsistent response") from exc
+  db.execute(text("""UPDATE finance.checkout_attempts
+  SET state='reconciliation_required',updated_at=now() WHERE id=:id"""),{"id":session_id})
+  db.commit()
+  raise HTTPException(502,"Payment initiation outcome uncertain; reconcile before retrying") from exc
+ db.execute(text("""UPDATE finance.checkout_attempts
+ SET state='created',provider_session_id=:remote,updated_at=now() WHERE id=:id"""),
+ {"id":session_id,"remote":session["payment_session_id"]})
  db.execute(text("""INSERT INTO finance.checkout_sessions
  (id,sales_order_id,provider_session_id,idempotency_key,amount,currency,state,created_by)
  VALUES (:id,:order,:remote,:key,:amount,'LSL',:state,:actor)"""),
@@ -60,6 +80,15 @@ def start_checkout(body:CheckoutStart,identity:dict=Depends(staff_identity),db:S
  db.commit()
  return {"session_id":session["payment_session_id"],"checkout_url":session["checkout_url"],
          "status":session["status"],"order_confirmed":False}
+
+@router.get("/orders/{order_id}/attempt")
+def checkout_attempt(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+ row=db.execute(text("""SELECT state,provider_session_id,created_at,updated_at
+ FROM finance.checkout_attempts WHERE sales_order_id=:order"""),{"order":order_id}).mappings().first()
+ if not row:raise HTTPException(404,"No checkout attempt found")
+ return {"state":row["state"],"provider_session_id":row["provider_session_id"],
+         "created_at":row["created_at"],"updated_at":row["updated_at"],
+         "safe_to_retry":False}
 
 @router.post("/checkouts/{session_id}/refresh")
 def refresh_checkout(session_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
