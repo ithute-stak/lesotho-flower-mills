@@ -3,18 +3,18 @@ from uuid import UUID
 from fastapi import APIRouter,Depends,HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from .authorization import staff_identity
+from .authorization import finance_identity
 from .db import db_session
 router=APIRouter(prefix="/api/v1/admin/final-total-approval",tags=["final-total-approval"])
 
 @router.get("/{order_id}/audit")
-def audit(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def audit(order_id:UUID,identity:dict=Depends(finance_identity),db:Session=Depends(db_session)):
  rows=db.execute(text("""SELECT actor_subject,action,total_amount,policy_reference,created_at
  FROM finance.total_review_events WHERE sales_order_id=:id ORDER BY created_at"""),{"id":order_id}).mappings().all()
  return [dict(r) for r in rows]
 
 @router.post("/{order_id}/approve")
-def approve(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def approve(order_id:UUID,identity:dict=Depends(finance_identity),db:Session=Depends(db_session)):
  row=db.execute(text("""SELECT created_by,review_status FROM finance.order_totals
  WHERE sales_order_id=:id FOR UPDATE"""),{"id":order_id}).mappings().first()
  if not row:raise HTTPException(404,"No order total exists")
@@ -25,7 +25,7 @@ def approve(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depen
  raise HTTPException(409,"Final approval disabled until validated tax policy, tariff snapshots and central role verification exist")
 
 @router.get("/{order_id}/readiness")
-def readiness(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def readiness(order_id:UUID,identity:dict=Depends(finance_identity),db:Session=Depends(db_session)):
  from .financial_readiness import assess
  order=db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id"),{"id":order_id}).mappings().first()
  if not order:raise HTTPException(404,"Order not found")
