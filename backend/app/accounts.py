@@ -6,7 +6,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .db import db_session
-from .security import current_identity, create_token, hash_password, verify_password, require_staff
+from .security import current_identity, create_token, hash_password, verify_password
+from .authorization import staff_identity
 
 router = APIRouter(prefix="/api/v1", tags=["accounts"])
 
