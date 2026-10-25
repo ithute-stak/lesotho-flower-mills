@@ -113,9 +113,12 @@ def release_reservation(reservation_id:UUID,identity:dict=Depends(staff_identity
         raise HTTPException(404,"Reservation not found")
     if row["status"]!="active":
         raise HTTPException(409,"Reservation is not active")
-    db.execute(text("""UPDATE inventory.stock_balances SET reserved=reserved-:quantity
+    updated=db.execute(text("""UPDATE inventory.stock_balances SET reserved=reserved-:quantity
       WHERE warehouse_id=:warehouse AND product_id=:product AND reserved>=:quantity"""),
       {"warehouse":row["warehouse_id"],"product":row["product_id"],"quantity":row["quantity"]})
+    if updated.rowcount!=1:
+        db.rollback()
+        raise HTTPException(409,"Stock balance does not match reservation")
     result=db.execute(text("""UPDATE inventory.stock_reservations SET status='released'
       WHERE id=:id AND status='active'"""),{"id":reservation_id})
     if result.rowcount!=1:
