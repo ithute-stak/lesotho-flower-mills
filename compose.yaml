@@ -41,5 +41,13 @@ services:
     ports:
       - "127.0.0.1:3001:3001"
     depends_on: [api]
+  warehouse-web:
+    build: ./apps/warehouse-web
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:8000
+    ports:
+      - "127.0.0.1:3002:3002"
+    depends_on: [api]
 volumes:
   postgres_data:
