@@ -58,8 +58,7 @@ def me(identity: dict = Depends(current_identity)):
 
 
 @router.post("/businesses/{customer_id}/approve")
-def approve_business(customer_id: str, identity: dict = Depends(current_identity), db: Session = Depends(db_session)):
-    require_staff(identity)
+def approve_business(customer_id: str, identity: dict = Depends(staff_identity), db: Session = Depends(db_session)):
     result = db.execute(text("""UPDATE crm.customers SET verification_status='approved'
                               WHERE id=:cid AND customer_type='business' AND verification_status='pending'"""), {"cid": customer_id})
     if result.rowcount != 1:
