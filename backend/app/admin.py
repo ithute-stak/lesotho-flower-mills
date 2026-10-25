@@ -34,7 +34,7 @@ def pending_businesses(identity: dict = Depends(staff_identity), db: Session = D
 
 @router.get("/price-books")
 def price_books(identity: dict = Depends(staff_identity), db: Session = Depends(db_session)):
-    rows = db.execute(text("SELECT id,code,name,currency,active FROM pricing.price_books ORDER BY name LIMIT 100")).mappings().all()
+    rows = db.execute(text("SELECT id,code,name,currency,active,status FROM pricing.price_books ORDER BY name LIMIT 100")).mappings().all()
     return [dict(row) for row in rows]
 
 
