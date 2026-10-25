@@ -1,10 +1,13 @@
 from fastapi import FastAPI
+from .commerce import router as commerce_router
 
 app = FastAPI(
     title="Lesotho Flour Mills API",
     description="Hybrid B2C/B2B commerce and distribution platform",
-    version="0.1.0",
+    version="0.2.0",
 )
+
+app.include_router(commerce_router)
 
 
 @app.get("/health", tags=["system"])
