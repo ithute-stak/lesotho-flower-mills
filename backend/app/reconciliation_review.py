@@ -38,3 +38,9 @@ def health(identity:dict=Depends(staff_identity),db:Session=Depends(db_session))
  result=assess_health(row,int(unresolved))
  return {**result,"last_run":dict(row) if row else None,
          "automated_execution_enabled":False,"settlement_verified":False}
+
+@router.get("/alerts")
+def alerts(identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+ rows=db.execute(text("""SELECT id,code,severity,details,created_at
+ FROM finance.operational_alerts ORDER BY created_at DESC LIMIT 100""")).mappings().all()
+ return [dict(row) for row in rows]
