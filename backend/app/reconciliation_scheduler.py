@@ -11,6 +11,7 @@ from sqlalchemy import create_engine,text
 from sqlalchemy.orm import Session
 from .checkout_recovery_worker import reconcile_known_sessions
 from .finance_alerts import calculate_alerts,persist_alerts,AlertThresholds
+from .alert_outbox import enqueue_pending
 
 def run_once()->dict:
  if os.getenv("LFM_RECONCILIATION_SCHEDULER_ENABLED")!="true":
@@ -35,6 +36,8 @@ def run_once()->dict:
     db.execute(text("""UPDATE finance.reconciliation_runs SET status='failed',finished_at=now()
     WHERE id=:id"""),{"id":run_id})
     db.commit()
+    persist_alerts(db,[("reconciliation_run_failed","critical","Latest reconciliation run failed")],datetime.now(timezone.utc).strftime("%Y-%m-%d-%H"))
+    enqueue_pending(db)
    raise
   with Session(engine) as db:
    db.execute(text("""UPDATE finance.reconciliation_runs SET status=:status,
@@ -52,6 +55,7 @@ def run_once()->dict:
      stale_after_minutes=int(os.getenv("LFM_ALERT_STALE_MINUTES","120")))
    events=calculate_alerts(latest,int(unresolved),limits)
    persist_alerts(db,events,datetime.now(timezone.utc).strftime("%Y-%m-%d-%H"))
+   enqueue_pending(db)
   return result
  finally:
   engine.dispose()
