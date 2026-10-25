@@ -45,7 +45,7 @@ def reconcile_known_sessions(db:Session,client:httpx.Client,*,limit:int=25)->dic
     (id,checkout_attempt_id,outcome,actor)
     VALUES (:id,:attempt,'unreachable','ithutepay-reconciler')"""),
     {"id":uuid4(),"attempt":row["id"]})
-   db.commit()
+   db.flush()
    continue
   db.execute(text("""INSERT INTO finance.reconciliation_events
     (id,checkout_attempt_id,outcome,remote_status,actor)
