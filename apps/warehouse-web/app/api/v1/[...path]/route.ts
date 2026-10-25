@@ -1,0 +1,12 @@
+import {NextRequest,NextResponse} from "next/server";
+export const runtime="nodejs";export const dynamic="force-dynamic";
+async function forward(req:NextRequest,path:string[]){
+ const backend=process.env.API_INTERNAL_URL??"http://127.0.0.1:8000";
+ const target=new URL("/api/v1/"+path.map(encodeURIComponent).join("/"),backend);target.search=req.nextUrl.search;
+ const headers=new Headers();for(const key of ["content-type","authorization"]){const value=req.headers.get(key);if(value)headers.set(key,value)}
+ try{const response=await fetch(target,{method:req.method,headers,body:req.method==="GET"?undefined:await req.text(),cache:"no-store",redirect:"manual"});
+ return new NextResponse(await response.text(),{status:response.status,headers:{"content-type":response.headers.get("content-type")??"application/json","cache-control":"no-store"}})}
+ catch{return NextResponse.json({detail:"Backend unavailable"},{status:503})}
+}
+export async function GET(req:NextRequest,c:{params:Promise<{path:string[]}>}){return forward(req,(await c.params).path)}
+export async function POST(req:NextRequest,c:{params:Promise<{path:string[]}>}){return forward(req,(await c.params).path)}
