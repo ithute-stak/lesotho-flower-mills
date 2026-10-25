@@ -36,7 +36,11 @@ def start_checkout(body:CheckoutStart,identity:dict=Depends(staff_identity),db:S
   {"id":body.order_id}).mappings().first()
  if not order:raise HTTPException(404,"Order not found")
  if order["status"]!="pending_payment":raise HTTPException(409,"Order not awaiting payment")
- if Decimal(order["subtotal"])<=0:raise HTTPException(422,"Invalid order amount")
+ approved=db.execute(text("""SELECT total,currency,review_status FROM finance.order_totals
+ WHERE sales_order_id=:id FOR UPDATE"""),{"id":body.order_id}).mappings().first()
+ if not approved or approved["review_status"]!="approved" or approved["currency"]!="LSL":
+  raise HTTPException(409,"Independently approved gross order total required")
+ if Decimal(approved["total"])<=0:raise HTTPException(422,"Invalid payable amount")
  # A unique key is retained locally for future reconciliation and retries.
  prior=db.execute(text("""SELECT provider_session_id,state FROM finance.checkout_sessions
  WHERE sales_order_id=:id ORDER BY created_at DESC LIMIT 1"""),{"id":body.order_id}).mappings().first()
@@ -45,14 +49,14 @@ def start_checkout(body:CheckoutStart,identity:dict=Depends(staff_identity),db:S
  idempotency_key="lfm-"+str(session_id)
  try:
   with httpx.Client() as client:
-   session=adapter(client).create_checkout(CheckoutRequest(order["order_number"],Decimal(order["subtotal"])),idempotency_key=idempotency_key)
+   session=adapter(client).create_checkout(CheckoutRequest(order["order_number"],Decimal(approved["total"])),idempotency_key=idempotency_key)
  except (httpx.HTTPError,ValueError) as exc:
   db.rollback();raise HTTPException(502,"Payment service unavailable or inconsistent response") from exc
  db.execute(text("""INSERT INTO finance.checkout_sessions
  (id,sales_order_id,provider_session_id,idempotency_key,amount,currency,state,created_by)
  VALUES (:id,:order,:remote,:key,:amount,'LSL',:state,:actor)"""),
  {"id":session_id,"order":body.order_id,"remote":session["payment_session_id"],"key":idempotency_key,
-  "amount":order["subtotal"],"state":session["status"],"actor":identity["sub"]})
+  "amount":approved["total"],"state":session["status"],"actor":identity["sub"]})
  db.commit()
  return {"session_id":session["payment_session_id"],"checkout_url":session["checkout_url"],
          "status":session["status"],"order_confirmed":False}
