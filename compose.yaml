@@ -29,6 +29,8 @@ services:
 
   customer-web:
     build: ./apps/customer-web
+    environment:
+      API_INTERNAL_URL: http://api:8000
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
