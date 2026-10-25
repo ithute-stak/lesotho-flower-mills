@@ -23,6 +23,7 @@ from .order_total_review import router as review_router
 from .financial_policy_admin import router as financial_policy_router
 from .policy_order_totals import router as policy_totals_router
 from .final_total_approval import router as final_approval_router
+from .reconciliation_review import router as reconciliation_router
 
 app = FastAPI(title="Lesotho Flour Mills API", description="Hybrid B2C/B2B commerce and distribution platform", version="0.4.0")
 app.include_router(commerce_router)
@@ -49,6 +50,7 @@ app.include_router(review_router)
 app.include_router(financial_policy_router)
 app.include_router(policy_totals_router)
 app.include_router(final_approval_router)
+app.include_router(reconciliation_router)
 
 
 @app.get("/health", tags=["system"])
