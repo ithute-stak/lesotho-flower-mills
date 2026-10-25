@@ -51,7 +51,7 @@ def publish_book(book_id: UUID, identity: dict = Depends(staff_identity), db: Se
 
 
 @router.get("/pricing/books/{book_id}/products/{product_id}")
-def trusted_price(book_id: UUID, product_id: UUID, quantity: int, identity: dict = Depends(current_identity), db: Session = Depends(db_session)):
+def trusted_price(book_id: UUID, product_id: UUID, quantity: int, identity: dict = Depends(staff_identity), db: Session = Depends(db_session)):
     if quantity < 1 or quantity > 1000000:
         raise HTTPException(422,"Invalid quantity")
     # Phase 6: default published retail book only; business customer price mapping is not yet connected.
