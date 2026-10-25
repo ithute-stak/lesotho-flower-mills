@@ -4,6 +4,7 @@ No timer runs in the API process. Requires explicit scheduler AND worker flags.
 """
 import json
 import os
+from uuid import uuid4
 from datetime import datetime,timezone
 import httpx
 from sqlalchemy import create_engine,text
@@ -20,8 +21,27 @@ def run_once()->dict:
   raise RuntimeError("Database configuration required")
  engine=create_engine(url,pool_pre_ping=True)
  try:
-  with Session(engine) as db, httpx.Client(timeout=15.0) as client:
-   return reconcile_known_sessions(db,client,limit=25)
+  run_id=uuid4()
+  with Session(engine) as db:
+   db.execute(text("INSERT INTO finance.reconciliation_runs(id,status) VALUES (:id,'running')"),{"id":run_id})
+   db.commit()
+  try:
+   with Session(engine) as db, httpx.Client(timeout=15.0) as client:
+    result=reconcile_known_sessions(db,client,limit=25)
+   status="skipped" if result.get("skipped") else "completed"
+  except Exception:
+   with Session(engine) as db:
+    db.execute(text("""UPDATE finance.reconciliation_runs SET status='failed',finished_at=now()
+    WHERE id=:id"""),{"id":run_id})
+    db.commit()
+   raise
+  with Session(engine) as db:
+   db.execute(text("""UPDATE finance.reconciliation_runs SET status=:status,
+   checked=:checked,updated=:updated,finished_at=now() WHERE id=:id"""),
+   {"id":run_id,"status":status,"checked":result.get("checked",0),
+    "updated":result.get("updated",0)})
+   db.commit()
+  return result
  finally:
   engine.dispose()
 
