@@ -27,3 +27,14 @@ def history(attempt_id:UUID,identity:dict=Depends(staff_identity),db:Session=Dep
  FROM finance.reconciliation_events WHERE checkout_attempt_id=:id ORDER BY created_at"""),
  {"id":attempt_id}).mappings().all()
  return [dict(row) for row in rows]
+
+@router.get("/health")
+def health(identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+ from .reconciliation_health import assess_health
+ row=db.execute(text("""SELECT status,started_at,finished_at,checked,updated
+ FROM finance.reconciliation_runs ORDER BY started_at DESC LIMIT 1""")).mappings().first()
+ unresolved=db.execute(text("""SELECT COUNT(*) FROM finance.checkout_attempts
+ WHERE state IN ('initiating','reconciliation_required')""")).scalar_one()
+ result=assess_health(row,int(unresolved))
+ return {**result,"last_run":dict(row) if row else None,
+         "automated_execution_enabled":False,"settlement_verified":False}
