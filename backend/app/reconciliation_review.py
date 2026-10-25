@@ -44,3 +44,11 @@ def alerts(identity:dict=Depends(staff_identity),db:Session=Depends(db_session))
  rows=db.execute(text("""SELECT id,code,severity,details,created_at
  FROM finance.operational_alerts ORDER BY created_at DESC LIMIT 100""")).mappings().all()
  return [dict(row) for row in rows]
+
+@router.get("/email-deliveries")
+def email_deliveries(identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+ rows=db.execute(text("""SELECT o.id,o.state,o.attempts,o.started_at,o.processed_at,
+ o.created_at,o.last_error,a.code,a.severity
+ FROM finance.alert_outbox o JOIN finance.operational_alerts a ON a.id=o.alert_id
+ ORDER BY o.created_at DESC LIMIT 100""")).mappings().all()
+ return [dict(row) for row in rows]
