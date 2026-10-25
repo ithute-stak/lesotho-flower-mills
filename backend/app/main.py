@@ -17,6 +17,7 @@ from .driver_portal import router as driver_portal_router
 from .proof_of_delivery import router as pod_router
 from .delivery_acknowledgement import router as acknowledgement_router
 from .checkout_reconciliation import router as checkout_router
+from .order_totals import router as totals_router
 
 app = FastAPI(title="Lesotho Flour Mills API", description="Hybrid B2C/B2B commerce and distribution platform", version="0.4.0")
 app.include_router(commerce_router)
@@ -37,6 +38,7 @@ app.include_router(driver_portal_router)
 app.include_router(pod_router)
 app.include_router(acknowledgement_router)
 app.include_router(checkout_router)
+app.include_router(totals_router)
 
 
 @app.get("/health", tags=["system"])
