@@ -25,9 +25,9 @@ def test_financial_migrations_present(conn):
 def test_policy_maker_checker_database_constraint(conn):
  # Isolated rolled-back changes; no durable testing data.
  pid=uuid4()
- conn.execute(text("""INSERT INTO finance.financial_policies
- (id,code,version,tax_rate_bps,delivery_taxable,max_discount_bps,status,created_by,approved_by)
- VALUES (:id,:code,1,0,false,0,'draft','same','same')"""),
- {"id":pid,"code":"CI-"+pid.hex[:20]})
- # The constraint prevents identical maker/checker even for drafts.
- # PostgreSQL integrity errors abort the transaction; use savepoints.
+ with pytest.raises(DBAPIError):
+  with conn.begin_nested():
+   conn.execute(text("""INSERT INTO finance.financial_policies
+   (id,code,version,tax_rate_bps,delivery_taxable,max_discount_bps,status,created_by,approved_by)
+   VALUES (:id,:code,1,0,false,0,'draft','same','same')"""),
+   {"id":pid,"code":"CI-"+pid.hex[:20]})
