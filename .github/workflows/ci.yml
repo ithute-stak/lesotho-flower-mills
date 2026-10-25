@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        app: [customer-web, admin-web]
+        app: [customer-web, admin-web, warehouse-web]
     defaults:
       run:
         working-directory: apps/${{ matrix.app }}
