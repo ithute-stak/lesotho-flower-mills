@@ -22,6 +22,9 @@ def request_grant(body:GrantRequest,identity:dict=Depends(finance_admin),db:Sess
  (id,identity_subject,role,requested_by)
  VALUES (:id,:target,:role,:actor)"""),
  {"id":request_id,"target":body.identity_subject,"role":body.role,"actor":identity["sub"]})
+ db.execute(text("""INSERT INTO finance.finance_grant_events
+ (id,request_id,subject,role,action,actor) VALUES (:id,:request,:subject,:role,'requested',:actor)"""),
+ {"id":uuid4(),"request":request_id,"subject":body.identity_subject,"role":body.role,"actor":identity["sub"]})
  db.commit()
  return {"request_id":str(request_id),"status":"pending"}
 
@@ -40,6 +43,13 @@ def approve_grant(request_id:UUID,identity:dict=Depends(finance_admin),db:Sessio
  ON CONFLICT(identity_subject,role)
  DO UPDATE SET active=true,revoked_at=NULL,granted_by=EXCLUDED.granted_by"""),
  {"id":uuid4(),"subject":row["identity_subject"],"role":row["role"],"actor":identity["sub"]})
+ grant_id=db.execute(text("""SELECT id FROM finance.finance_role_grants
+ WHERE identity_subject=:subject AND role=:role"""),
+ {"subject":row["identity_subject"],"role":row["role"]}).scalar_one()
+ db.execute(text("""INSERT INTO finance.finance_grant_events
+ (id,request_id,grant_id,subject,role,action,actor)
+ VALUES (:id,:request,:grant,:subject,:role,'approved',:actor)"""),
+ {"id":uuid4(),"request":request_id,"grant":grant_id,"subject":row["identity_subject"],"role":row["role"],"actor":identity["sub"]})
  db.execute(text("""UPDATE finance.finance_grant_requests
  SET status='approved',reviewed_by=:actor,reviewed_at=now() WHERE id=:id"""),
  {"id":request_id,"actor":identity["sub"]})
@@ -48,7 +58,7 @@ def approve_grant(request_id:UUID,identity:dict=Depends(finance_admin),db:Sessio
 
 @router.post("/grants/{grant_id}/revoke")
 def revoke_grant(grant_id:UUID,identity:dict=Depends(finance_admin),db:Session=Depends(db_session)):
- row=db.execute(text("""SELECT identity_subject,active FROM finance.finance_role_grants
+ row=db.execute(text("""SELECT identity_subject,role,active FROM finance.finance_role_grants
  WHERE id=:id FOR UPDATE"""),{"id":grant_id}).mappings().first()
  if not row:raise HTTPException(404,"Grant not found")
  if row["identity_subject"]==identity["sub"]:
@@ -56,6 +66,10 @@ def revoke_grant(grant_id:UUID,identity:dict=Depends(finance_admin),db:Session=D
  if not row["active"]:raise HTTPException(409,"Grant already inactive")
  db.execute(text("""UPDATE finance.finance_role_grants SET active=false,revoked_at=now()
  WHERE id=:id"""),{"id":grant_id})
+ db.execute(text("""INSERT INTO finance.finance_grant_events
+ (id,grant_id,subject,role,action,actor)
+ VALUES (:id,:grant,:subject,:role,'revoked',:actor)"""),
+ {"id":uuid4(),"grant":grant_id,"subject":row["identity_subject"],"role":row["role"],"actor":identity["sub"]})
  db.commit()
  return {"status":"revoked"}
 
@@ -64,3 +78,8 @@ def grants(identity:dict=Depends(finance_admin),db:Session=Depends(db_session)):
  return [dict(r) for r in db.execute(text("""SELECT id,identity_subject,role,active,granted_by,
  created_at,revoked_at FROM finance.finance_role_grants
  ORDER BY created_at DESC LIMIT 200""")).mappings().all()]
+
+@router.get("/events")
+def audit_events(identity:dict=Depends(finance_admin),db:Session=Depends(db_session)):
+ return [dict(r) for r in db.execute(text("""SELECT subject,role,action,actor,created_at
+ FROM finance.finance_grant_events ORDER BY created_at DESC LIMIT 200""")).mappings().all()]
