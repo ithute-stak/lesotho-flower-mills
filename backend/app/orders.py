@@ -52,3 +52,36 @@ def create_order(body:CreateOrder,identity:dict=Depends(staff_identity),db:Sessi
     db.commit()
     return {"id":str(oid),"order_number":reference,"status":"pending_payment",
             "stock_reserved":True,"payment_received":False}
+
+
+@router.post("/{order_id}/cancel")
+def cancel_unpaid_order(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+    """Release stock only for a pending, unpaid order, under row locks."""
+    order=db.execute(text("""SELECT id,quotation_id,status FROM sales.sales_orders
+      WHERE id=:id FOR UPDATE"""),{"id":order_id}).mappings().first()
+    if not order:raise HTTPException(404,"Order not found")
+    if order["status"]!="pending_payment":
+        raise HTTPException(409,"Only pending-payment orders can be cancelled here")
+    if db.execute(text("""SELECT 1 FROM fulfilment.pick_lists
+      WHERE sales_order_id=:order LIMIT 1"""),{"order":order_id}).first():
+        raise HTTPException(409,"Order already entered fulfilment")
+    reservations=db.execute(text("""SELECT sr.id,sr.warehouse_id,sr.product_id,sr.quantity
+      FROM inventory.stock_reservations sr
+      JOIN sales.quotation_items qi ON qi.id=sr.quotation_item_id
+      WHERE qi.quotation_id=:quotation AND sr.status='active'
+      ORDER BY sr.id FOR UPDATE OF sr"""),{"quotation":order["quotation_id"]}).mappings().all()
+    for reservation in reservations:
+        change=db.execute(text("""UPDATE inventory.stock_balances
+          SET reserved=reserved-:qty
+          WHERE warehouse_id=:warehouse AND product_id=:product AND reserved>=:qty"""),
+          {"qty":reservation["quantity"],"warehouse":reservation["warehouse_id"],
+           "product":reservation["product_id"]})
+        if change.rowcount!=1:
+            db.rollback()
+            raise HTTPException(409,"Reservation balance mismatch; cancellation aborted")
+        db.execute(text("""UPDATE inventory.stock_reservations SET status='released'
+          WHERE id=:id AND status='active'"""),{"id":reservation["id"]})
+    db.execute(text("""UPDATE sales.sales_orders SET status='cancelled'
+      WHERE id=:id AND status='pending_payment'"""),{"id":order_id})
+    db.commit()
+    return {"id":str(order_id),"status":"cancelled","released_reservations":len(reservations)}
