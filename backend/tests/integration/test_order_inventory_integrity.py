@@ -114,3 +114,31 @@ def test_cancellation_records_single_immutable_audit_event(order_db):
   cancel_unpaid_order(order["id"],{"sub":"ci-staff"},db)
  assert db.execute(text("""SELECT COUNT(*) FROM sales.order_cancellation_events
  WHERE order_id=:order"""),{"order":order["id"]}).scalar_one()==1
+
+def test_two_product_release_rolls_back_if_second_balance_is_missing(order_db):
+ db,quote,warehouse,first_product=order_db
+ second_product,second_item=uuid4(),uuid4()
+ code="CI-"+uuid4().hex[:20]
+ db.execute(text("INSERT INTO catalog.products(id,sku,name) VALUES (:id,:code,'Second synthetic bag')"),
+            {"id":second_product,"code":code})
+ db.execute(text("""INSERT INTO sales.quotation_items
+ (id,quotation_id,product_id,sku_snapshot,product_name_snapshot,quantity,pricing_method_snapshot,line_total)
+ VALUES (:id,:quote,:product,:sku,'Second synthetic bag',1,'fixed_bundle',100)"""),
+ {"id":second_item,"quote":quote,"product":second_product,"sku":code})
+ db.execute(text("""INSERT INTO inventory.stock_balances(warehouse_id,product_id,on_hand,reserved)
+ VALUES (:w,:p,5,0)"""),{"w":warehouse,"p":second_product})
+ db.commit()
+ order=create_order(CreateOrder(quotation_id=quote,warehouse_id=warehouse),{"sub":"ci-staff"},db)
+ assert tuple(snapshot(db,warehouse,first_product))==(5,4)
+ assert tuple(snapshot(db,warehouse,second_product))==(5,1)
+ # Simulate a corrupt/missing reserved count after ordering, before cancellation.
+ # The cancellation must fail and roll back any preceding released line.
+ db.execute(text("""UPDATE inventory.stock_balances SET reserved=0
+ WHERE warehouse_id=:w AND product_id=:p"""),{"w":warehouse,"p":second_product})
+ db.commit()
+ with pytest.raises(HTTPException) as exc:
+  cancel_unpaid_order(order["id"],{"sub":"ci-staff"},db)
+ assert exc.value.status_code==409
+ assert tuple(snapshot(db,warehouse,first_product))==(5,4)
+ assert db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id"),{"id":order["id"]}).scalar_one()=="pending_payment"
+ assert db.execute(text("SELECT COUNT(*) FROM sales.order_cancellation_events WHERE order_id=:id"),{"id":order["id"]}).scalar_one()==0
