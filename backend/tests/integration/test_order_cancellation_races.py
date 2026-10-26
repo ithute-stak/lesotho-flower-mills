@@ -37,18 +37,16 @@ def committed_order():
  finally:
   with engine.begin() as db:
    audited=db.execute(text("SELECT 1 FROM sales.order_cancellation_events WHERE order_id IN (SELECT id FROM sales.sales_orders WHERE quotation_id=:q)"),{"q":quote}).first()
-   if audited is not None:
-    # Immutable audit must not be bypassed; CI database is ephemeral.
-    return
-   db.execute(text("DELETE FROM inventory.stock_reservations WHERE quotation_item_id=:i"),{"i":item})
-   db.execute(text("DELETE FROM sales.sales_orders WHERE quotation_id=:q"),{"q":quote})
-   db.execute(text("DELETE FROM sales.quotation_items WHERE id=:i"),{"i":item})
-   db.execute(text("DELETE FROM sales.quotations WHERE id=:q"),{"q":quote})
-   db.execute(text("DELETE FROM inventory.stock_balances WHERE warehouse_id=:w AND product_id=:p"),{"w":warehouse,"p":product})
-   db.execute(text("DELETE FROM inventory.warehouses WHERE id=:w"),{"w":warehouse})
-   db.execute(text("DELETE FROM pricing.price_books WHERE id=:b"),{"b":book})
-   db.execute(text("DELETE FROM catalog.products WHERE id=:p"),{"p":product})
-   db.execute(text("DELETE FROM crm.customers WHERE id=:c"),{"c":customer})
+   if audited is None:
+    db.execute(text("DELETE FROM inventory.stock_reservations WHERE quotation_item_id=:i"),{"i":item})
+    db.execute(text("DELETE FROM sales.sales_orders WHERE quotation_id=:q"),{"q":quote})
+    db.execute(text("DELETE FROM sales.quotation_items WHERE id=:i"),{"i":item})
+    db.execute(text("DELETE FROM sales.quotations WHERE id=:q"),{"q":quote})
+    db.execute(text("DELETE FROM inventory.stock_balances WHERE warehouse_id=:w AND product_id=:p"),{"w":warehouse,"p":product})
+    db.execute(text("DELETE FROM inventory.warehouses WHERE id=:w"),{"w":warehouse})
+    db.execute(text("DELETE FROM pricing.price_books WHERE id=:b"),{"b":book})
+    db.execute(text("DELETE FROM catalog.products WHERE id=:p"),{"p":product})
+    db.execute(text("DELETE FROM crm.customers WHERE id=:c"),{"c":customer})
   engine.dispose()
 
 def test_two_simultaneous_cancellations_release_stock_only_once(committed_order):
