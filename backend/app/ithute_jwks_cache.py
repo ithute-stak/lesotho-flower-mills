@@ -3,9 +3,22 @@
 Never derive the URL from a JWT header or claims. Inject a tested HTTP client.
 """
 import ipaddress
+import socket
 import time
 from urllib.parse import urlsplit
 import httpx
+
+def validate_public_dns(hostname:str,resolver=None)->tuple[str,...]:
+ # Preflight only: DNS may change before TLS connection.
+ lookup=resolver or socket.getaddrinfo
+ try:
+  entries=lookup(hostname,443,type=socket.SOCK_STREAM)
+  addresses=tuple(sorted({item[4][0] for item in entries}))
+  if not addresses or any(not ipaddress.ip_address(ip).is_global for ip in addresses):
+   raise ValueError("JWKS DNS contains non-global address")
+  return addresses
+ except (OSError,ValueError,TypeError,IndexError) as exc:
+  raise ValueError("Unsafe JWKS DNS resolution") from exc
 
 class TrustedJWKSCache:
  def __init__(self,url:str,*,ttl_seconds:int=300,client=None,clock=None):
@@ -34,10 +47,9 @@ class TrustedJWKSCache:
    return self._keys
   try:
    if self.client is None:
-    with httpx.Client(timeout=5,follow_redirects=False,trust_env=False) as client:
-     response=client.get(self.url)
-   else:
-    response=self.client.get(self.url)
+    # Unpinned DNS-to-TLS connections are forbidden pending audited transport.
+    raise ValueError("Production JWKS transport not approved")
+   response=self.client.get(self.url)
    if response.status_code!=200 or len(response.content)>65536:
     raise ValueError("JWKS fetch rejected")
    if response.headers.get("content-type","").split(";")[0].strip().lower()!="application/json":
