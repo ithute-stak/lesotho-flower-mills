@@ -1,0 +1,30 @@
+{
+  email {$ACME_EMAIL}
+}
+{$LFM_CUSTOMER_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy customer-web:3000
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+}
+{$LFM_ADMIN_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy admin-web:3001
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    X-Content-Type-Options "nosniff"
+  }
+}
+{$LFM_WAREHOUSE_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy warehouse-web:3002
+  header Strict-Transport-Security "max-age=31536000"
+}
+{$LFM_DRIVER_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy driver-web:3003
+  header Strict-Transport-Security "max-age=31536000"
+}
