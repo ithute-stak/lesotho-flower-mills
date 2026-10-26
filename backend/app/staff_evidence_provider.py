@@ -6,7 +6,7 @@ An approved provider implementation must supply the callable after deployment.
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Protocol
-from .staff_identity_gate import StaffAttestation,verify_staff_access
+from .staff_identity_gate import StaffAttestation,staff_decision_from_verified_claims
 
 @dataclass(frozen=True)
 class VerifiedStaffEvidence:
@@ -45,7 +45,7 @@ def check_staff_with_provider(token,verifier,provider:TrustedStaffEvidenceProvid
    membership_current=evidence.member,mfa_verified=evidence.mfa,
    session_not_revoked=evidence.session_active,
    gateway_deployed=gateway_deployed,security_approved=security_approved)
- _,decision=verify_staff_access(token,verifier,attestation)
+ decision=staff_decision_from_verified_claims(claims,attestation)
  if not decision.allowed:
   raise PermissionError("Staff gateway authorization incomplete")
  return claims
