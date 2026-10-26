@@ -1,0 +1,5 @@
+# Phase 66 — Enforce identity-ownership attestation before link activation
+
+Phase 65 CI passed. This phase adds an attestation prerequisite to central staff-link activation: attested issuer/subject must match the requested link, and an attestation timestamp/reference must be present. The staff-link review API now denies requests without them. The migration **deactivates and revokes any previously active, unattested links**, conservatively prioritising access safety; operators should review migration effects before rollout. No attestation records are generated automatically.
+
+**Blocked:** A trusted central Ithute Auth ownership-proof ceremony and approved attestation writer do not yet exist. Administrators cannot activate links through this API until that external verification is safely integrated. Direct database edits are not an acceptable replacement for identity proof. Unit tests cover absent and mismatched attestation; PostgreSQL end-to-end attestation tests remain pending. Live central login and financial approvals stay disabled.
