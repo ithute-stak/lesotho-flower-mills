@@ -1,0 +1,33 @@
+name: Release Readiness Evidence
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate fail-closed release decision
+        run: |
+          mkdir -p artifacts
+          PYTHONPATH=backend python - <<'PY'
+          import json
+          from pathlib import Path
+          from app.release_readiness import readiness_report
+          report=readiness_report()
+          assert not report["production_ready"]
+          assert not report["external_pilot_approved"]
+          assert len(report["unverified"])==6
+          Path("artifacts/release-readiness.json").write_text(json.dumps(report,indent=2)+"\n")
+          PY
+      - name: Upload auditable readiness status
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-readiness-unapproved
+          path: artifacts/release-readiness.json
+          retention-days: 30
