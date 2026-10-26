@@ -18,7 +18,12 @@ class StaffAttestation:
 
 def verify_staff_access(token:str,verifier:IthuteTokenService,attestation:StaffAttestation)->tuple[dict,GatewayDecision]:
  claims=verifier.verify(token)
- decision=staff_gateway_decision(
+ return claims,staff_decision_from_verified_claims(claims,attestation)
+
+def staff_decision_from_verified_claims(claims:dict,attestation:StaffAttestation)->GatewayDecision:
+ if not isinstance(claims.get("sub"),str) or not claims["sub"].strip():
+  return GatewayDecision(False,"Missing verified staff subject")
+ return staff_gateway_decision(
   issuer_verified=True,audience_verified=True,signature_verified=True,
   subject_active=attestation.subject_active,
   membership_current=attestation.membership_current,
@@ -26,4 +31,3 @@ def verify_staff_access(token:str,verifier:IthuteTokenService,attestation:StaffA
   session_not_revoked=attestation.session_not_revoked,
   gateway_deployed=attestation.gateway_deployed,
   security_approved=attestation.security_approved)
- return claims,decision
