@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from .authorization import staff_identity
+from .finance_permissions import finance_read,finance_review
 from .db import db_session
 
 router=APIRouter(prefix="/api/v1/admin/payment-gateway",tags=["payment-gateway"])
@@ -37,7 +37,7 @@ class InitiateRequest(BaseModel):
     provider:str=Field(min_length=2,max_length=60)
 
 @router.post("/initiate",status_code=201)
-def initiate(body:InitiateRequest,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def initiate(body:InitiateRequest,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
     if os.getenv("LFM_SANDBOX_PAYMENTS_ENABLED")!="true":
         raise HTTPException(503,"Sandbox payment initiation disabled")
     provider=PROVIDERS.get(body.provider)
@@ -61,6 +61,6 @@ def initiate(body:InitiateRequest,identity:dict=Depends(staff_identity),db:Sessi
         "payment_url":intent.redirect_url,"can_confirm_order":False}
 
 @router.get("/providers")
-def providers(identity:dict=Depends(staff_identity)):
+def providers(identity:dict=Depends(finance_read)):
     return {"available_sandbox":["sandbox"] if os.getenv("LFM_SANDBOX_PAYMENTS_ENABLED")=="true" else [],
             "live_integrations":[],"payment_confirmation_enabled":False}
