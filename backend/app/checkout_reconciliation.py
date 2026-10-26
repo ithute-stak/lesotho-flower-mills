@@ -10,7 +10,7 @@ from fastapi import APIRouter,Depends,HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from .authorization import staff_identity
+from .finance_permissions import finance_read,finance_review
 from .db import db_session
 from .ithute_pay_adapter import CheckoutRequest,IthutePayCheckoutAdapter
 
@@ -29,7 +29,7 @@ def adapter(client:httpx.Client)->IthutePayCheckoutAdapter:
  except ValueError:raise HTTPException(503,"Invalid IthutePay configuration")
 
 @router.post("/checkouts",status_code=201)
-def start_checkout(body:CheckoutStart,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def start_checkout(body:CheckoutStart,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
  # No customer-driven payments until quote taxes and delivery pricing are final.
  if os.getenv("LFM_ITHUTE_PAY_CHECKOUT_ENABLED")!="true":raise HTTPException(503,"Checkout disabled")
  order=db.execute(text("SELECT id,order_number,subtotal,status FROM sales.sales_orders WHERE id=:id FOR UPDATE"),
@@ -82,7 +82,7 @@ def start_checkout(body:CheckoutStart,identity:dict=Depends(staff_identity),db:S
          "status":session["status"],"order_confirmed":False}
 
 @router.get("/orders/{order_id}/attempt")
-def checkout_attempt(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def checkout_attempt(order_id:UUID,identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
  row=db.execute(text("""SELECT state,provider_session_id,created_at,updated_at
  FROM finance.checkout_attempts WHERE sales_order_id=:order"""),{"order":order_id}).mappings().first()
  if not row:raise HTTPException(404,"No checkout attempt found")
@@ -91,7 +91,7 @@ def checkout_attempt(order_id:UUID,identity:dict=Depends(staff_identity),db:Sess
          "safe_to_retry":False}
 
 @router.post("/checkouts/{session_id}/refresh")
-def refresh_checkout(session_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def refresh_checkout(session_id:UUID,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
  row=db.execute(text("""SELECT id,sales_order_id,provider_session_id,amount,currency,state
  FROM finance.checkout_sessions WHERE id=:id FOR UPDATE"""),{"id":session_id}).mappings().first()
  if not row:raise HTTPException(404,"Checkout session not found")
