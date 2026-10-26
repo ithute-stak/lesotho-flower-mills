@@ -22,7 +22,7 @@ def test_missing_provider_denied():
 
 def test_full_server_evidence_allows_only_with_approval():
  assert check_staff_with_provider("valid",Verifier(),Provider(GOOD),
-  gateway_deployed=True,security_approved=True)["sub"]=="staff-1"
+  gateway_deployed=True,security_approved=True,expected_organization="lfm")["sub"]=="staff-1"
  with pytest.raises(PermissionError):
   check_staff_with_provider("valid",Verifier(),Provider(GOOD))
 
