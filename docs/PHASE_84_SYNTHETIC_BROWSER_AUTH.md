@@ -1,0 +1,5 @@
+# Phase 84 — Synthetic authenticated browser contract checks
+
+Phase 83 CI and Browser Smoke passed. Added Playwright tests that simulate a successful warehouse staff login and authenticated stock balance API response, inspect the outgoing bearer token, verify the stock screen appears, and sign out. A negative admin login test simulates HTTP 401, verifies the error is displayed, and confirms the visitor stays at staff sign-in.
+
+All accounts, credentials, tokens, and API responses in these tests are synthetic and intercepted inside Playwright. **They do not exercise the real FastAPI authentication backend, actual PostgreSQL membership, central Ithute Auth, or real inventory.** This is UI/API contract coverage, not authenticated backend end-to-end proof. Next steps: start an isolated PostgreSQL-backed FastAPI service with synthetic seeded users, remove route mocks for real integration checks, and test role restrictions and data cleanup. Live payment, dispatch and external pilot remain blocked.
