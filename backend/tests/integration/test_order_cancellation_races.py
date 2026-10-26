@@ -36,7 +36,10 @@ def committed_order():
   yield engine,order["id"],warehouse,product
  finally:
   with engine.begin() as db:
-   db.execute(text("DELETE FROM sales.order_cancellation_events WHERE order_id IN (SELECT id FROM sales.sales_orders WHERE quotation_id=:q)"),{"q":quote})
+   audited=db.execute(text("SELECT 1 FROM sales.order_cancellation_events WHERE order_id IN (SELECT id FROM sales.sales_orders WHERE quotation_id=:q)"),{"q":quote}).first()
+   if audited is not None:
+    # Immutable audit must not be bypassed; CI database is ephemeral.
+    return
    db.execute(text("DELETE FROM inventory.stock_reservations WHERE quotation_item_id=:i"),{"i":item})
    db.execute(text("DELETE FROM sales.sales_orders WHERE quotation_id=:q"),{"q":quote})
    db.execute(text("DELETE FROM sales.quotation_items WHERE id=:i"),{"i":item})
