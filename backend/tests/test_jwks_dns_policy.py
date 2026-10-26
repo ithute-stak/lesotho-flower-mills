@@ -14,5 +14,5 @@ def test_dns_rejects_private_and_mixed_addresses(addresses):
   validate_public_dns("auth.example",fake_dns(addresses))
 
 def test_real_fetch_disabled_without_pinned_tls_transport():
- with pytest.raises(ValueError,match="transport"):
+ with pytest.raises(ValueError,match="Trusted JWKS retrieval failed"):
   TrustedJWKSCache("https://auth.example/jwks").get()
