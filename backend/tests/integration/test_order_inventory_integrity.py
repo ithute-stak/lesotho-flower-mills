@@ -102,3 +102,15 @@ def test_confirmed_order_cannot_cancel_or_release(order_db):
   cancel_unpaid_order(order["id"],{"sub":"ci-staff"},db)
  assert exc.value.status_code==409
  assert tuple(snapshot(db,warehouse,product))==(5,4)
+
+def test_cancellation_records_single_immutable_audit_event(order_db):
+ db,quote,warehouse,product=order_db
+ order=create_order(CreateOrder(quotation_id=quote,warehouse_id=warehouse),{"sub":"ci-staff"},db)
+ cancel_unpaid_order(order["id"],{"sub":"ci-staff"},db)
+ rows=db.execute(text("""SELECT actor_subject,released_count FROM sales.order_cancellation_events
+ WHERE order_id=:order"""),{"order":order["id"]}).all()
+ assert rows==[("ci-staff",1)]
+ with pytest.raises(HTTPException):
+  cancel_unpaid_order(order["id"],{"sub":"ci-staff"},db)
+ assert db.execute(text("""SELECT COUNT(*) FROM sales.order_cancellation_events
+ WHERE order_id=:order"""),{"order":order["id"]}).scalar_one()==1
