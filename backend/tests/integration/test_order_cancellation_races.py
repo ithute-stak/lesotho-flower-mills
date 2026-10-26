@@ -116,3 +116,34 @@ def test_checkout_attempt_wins_and_cancellation_must_reject(committed_order):
   assert db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id"),{"id":order_id}).scalar_one()=="pending_payment"
   assert db.execute(text("SELECT reserved FROM inventory.stock_balances WHERE warehouse_id=:w AND product_id=:p"),{"w":warehouse,"p":product}).scalar_one()==4
   assert db.execute(text("SELECT COUNT(*) FROM sales.order_cancellation_events WHERE order_id=:id"),{"id":order_id}).scalar_one()==0
+
+def test_cancellation_wins_then_checkout_must_reject(committed_order):
+ """Competing checkout must see cancelled status after the order lock clears."""
+ from threading import Event
+ engine,order_id,warehouse,product=committed_order
+ lock_held=Event()
+ release_lock=Event()
+ def cancel():
+  with Session(engine) as db:
+   db.execute(text("SELECT id FROM sales.sales_orders WHERE id=:id FOR UPDATE"),{"id":order_id})
+   lock_held.set()
+   assert release_lock.wait(15)
+   return cancel_unpaid_order(order_id,{"sub":"ci-finance-admin"},db)
+ def checkout():
+  with Session(engine) as db:
+   status=db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id FOR UPDATE"),{"id":order_id}).scalar_one()
+   if status!="pending_payment":
+    return 409
+   raise AssertionError("Checkout unexpectedly eligible after cancellation")
+ with ThreadPoolExecutor(max_workers=2) as pool:
+  first=pool.submit(cancel)
+  assert lock_held.wait(15)
+  second=pool.submit(checkout)
+  release_lock.set()
+  assert first.result(timeout=25)["status"]=="cancelled"
+  assert second.result(timeout=25)==409
+ with engine.connect() as db:
+  assert db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id"),{"id":order_id}).scalar_one()=="cancelled"
+  assert db.execute(text("SELECT reserved FROM inventory.stock_balances WHERE warehouse_id=:w AND product_id=:p"),{"w":warehouse,"p":product}).scalar_one()==0
+  assert db.execute(text("SELECT COUNT(*) FROM finance.checkout_attempts WHERE sales_order_id=:id"),{"id":order_id}).scalar_one()==0
+  assert db.execute(text("SELECT COUNT(*) FROM sales.order_cancellation_events WHERE order_id=:id"),{"id":order_id}).scalar_one()==1
