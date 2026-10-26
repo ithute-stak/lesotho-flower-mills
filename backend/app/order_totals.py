@@ -5,7 +5,7 @@ from fastapi import APIRouter,Depends,HTTPException
 from pydantic import BaseModel,Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from .authorization import staff_identity
+from .finance_permissions import finance_read,finance_review
 from .db import db_session
 
 router=APIRouter(prefix="/api/v1/admin/orders",tags=["order-totals"])
@@ -27,7 +27,7 @@ class PreviewRequest(BaseModel):
  delivery_taxable:bool=False
  policy_reference:str=Field(min_length=3,max_length=120)
 @router.post("/{order_id}/totals/preview")
-def preview(order_id:UUID,body:PreviewRequest,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def preview(order_id:UUID,body:PreviewRequest,identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
  row=db.execute(text("SELECT subtotal,status FROM sales.sales_orders WHERE id=:id"),{"id":order_id}).mappings().first()
  if not row:raise HTTPException(404,"Order not found")
  if row["status"]!="pending_payment":raise HTTPException(409,"Only unconfirmed orders can be previewed")
