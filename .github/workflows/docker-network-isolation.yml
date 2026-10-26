@@ -1,0 +1,22 @@
+name: Docker Network Isolation
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  isolated-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify declared public-edge separation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text=Path("compose.https.yaml").read_text()
+          edge=text.split("  edge:",1)[1].split("\n  customer-web:",1)[0]
+          assert "    networks:\n      - public_edge" in edge
+          assert "      - default" not in edge
+          assert "  admin-web:" not in text and "  warehouse-web:" not in text
+          PY
+      - name: Probe disposable public/private Docker networks
+        run: bash deploy/test_network_isolation.sh
