@@ -160,3 +160,26 @@ def test_checkout_session_blocks_cancellation_and_preserves_reservations(order_d
  assert tuple(snapshot(db,warehouse,product))==(5,4)
  assert db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id"),{"id":order["id"]}).scalar_one()=="pending_payment"
  assert db.execute(text("SELECT COUNT(*) FROM sales.order_cancellation_events WHERE order_id=:id"),{"id":order["id"]}).scalar_one()==0
+
+@pytest.mark.parametrize("record_type",["attempt","transaction"])
+def test_financial_activity_blocks_cancellation(order_db,record_type):
+ db,quote,warehouse,product=order_db
+ order=create_order(CreateOrder(quotation_id=quote,warehouse_id=warehouse),{"sub":"ci-staff"},db)
+ key=uuid4().hex
+ if record_type=="attempt":
+  db.execute(text("""INSERT INTO finance.checkout_attempts
+   (id,sales_order_id,idempotency_key,state,amount,created_by)
+   VALUES (:id,:order,:key,'initiating',430,'ci')"""),
+   {"id":uuid4(),"order":order["id"],"key":key})
+ else:
+  db.execute(text("""INSERT INTO finance.payment_transactions
+   (id,sales_order_id,provider,provider_reference,amount)
+   VALUES (:id,:order,'sandbox',:reference,430)"""),
+   {"id":uuid4(),"order":order["id"],"reference":key})
+ db.commit()
+ with pytest.raises(HTTPException) as exc:
+  cancel_unpaid_order(order["id"],{"sub":"ci-staff"},db)
+ assert exc.value.status_code==409
+ assert tuple(snapshot(db,warehouse,product))==(5,4)
+ assert db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id"),
+                   {"id":order["id"]}).scalar_one()=="pending_payment"
