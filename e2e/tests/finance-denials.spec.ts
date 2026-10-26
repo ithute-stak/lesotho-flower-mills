@@ -18,3 +18,16 @@ test("customer and anonymous callers cannot cancel orders",async({request})=>{
  expect((await request.post(url,{headers:{authorization:"Bearer "+token}})).status()).toBe(403);
  expect((await request.post(url)).status()).toBe(401);
 });
+
+test("ungranted administrator cannot read payment ledger or record a payment",async({request})=>{
+ const token=await login(request,"e2e-warehouse@example.invalid","e2e-synthetic-only-password");
+ const headers={authorization:"Bearer "+token};
+ const id="00000000-0000-0000-0000-000000000001";
+ const read=await request.get("http://127.0.0.1:8000/api/v1/admin/finance/orders/"+id+"/payments",{headers});
+ expect(read.status()).toBe(403);
+ const write=await request.post("http://127.0.0.1:8000/api/v1/admin/finance/payments",{
+  headers,data:{order_id:id,provider:"synthetic",provider_reference:"synthetic-ref-001",amount:"1.00"}});
+ expect(write.status()).toBe(403);
+ const confirm=await request.post("http://127.0.0.1:8000/api/v1/admin/finance/orders/"+id+"/confirm-payment",{headers});
+ expect(confirm.status()).toBe(403);
+});
