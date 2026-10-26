@@ -1,0 +1,32 @@
+# Optional HTTPS edge. Requires validated DNS, ACME email, and authorised firewall policy.
+services:
+  edge:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+      LFM_CUSTOMER_DOMAIN: ${LFM_CUSTOMER_DOMAIN:?Set LFM_CUSTOMER_DOMAIN}
+      LFM_ADMIN_DOMAIN: ${LFM_ADMIN_DOMAIN:?Set LFM_ADMIN_DOMAIN}
+      LFM_WAREHOUSE_DOMAIN: ${LFM_WAREHOUSE_DOMAIN:?Set LFM_WAREHOUSE_DOMAIN}
+      LFM_DRIVER_DOMAIN: ${LFM_DRIVER_DOMAIN:?Set LFM_DRIVER_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - customer-web
+      - admin-web
+      - warehouse-web
+      - driver-web
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+volumes:
+  caddy_data:
+  caddy_config:
