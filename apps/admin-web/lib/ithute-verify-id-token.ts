@@ -25,7 +25,7 @@ export async function verifyIthuteIdToken(input:{
  if(!Array.isArray(jwks.keys)||jwks.keys.length>100)throw new Error("Invalid JWKS");
  const candidates=jwks.keys.filter(k=>k.kid===header.kid&&k.kty==="RSA"&&(!k.alg||k.alg==="RS256")&&(!k.use||k.use==="sig"));
  if(candidates.length!==1)throw new Error("Signing key not uniquely identified");
- const key=createPublicKey({key:candidates[0] as JsonWebKey,format:"jwk"});
+ const key=createPublicKey({key:candidates[0] as import("node:crypto").JsonWebKey,format:"jwk"});
  if(!verifySignature("RSA-SHA256",Buffer.from(parts[0]+"."+parts[1]),key,Buffer.from(parts[2],"base64url")))
   throw new Error("Invalid ID token signature");
  const claims=decodePart(parts[1]);
