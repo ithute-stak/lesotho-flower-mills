@@ -8,6 +8,9 @@ class FinanceRoute:
     permission:str
 
 FINANCE_ROUTES=(
+ FinanceRoute("financial_policy_admin","create_policy","finance_review"),
+ FinanceRoute("financial_policy_admin","approve_policy","finance_admin"),
+ FinanceRoute("financial_policy_admin","list_policies","finance_read"),
  FinanceRoute("payment_authorisation","record_payment","finance_review"),
  FinanceRoute("payment_authorisation","order_payments","finance_read"),
  FinanceRoute("payment_authorisation","confirm_paid_order","finance_admin"),
