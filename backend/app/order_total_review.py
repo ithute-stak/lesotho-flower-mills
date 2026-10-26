@@ -8,7 +8,7 @@ from fastapi import APIRouter,Depends,HTTPException
 from pydantic import BaseModel,Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from .authorization import staff_identity
+from .finance_permissions import finance_read,finance_review
 from .db import db_session
 from .order_totals import calculate
 
@@ -23,7 +23,7 @@ class DraftRequest(BaseModel):
  policy_reference:str=Field(min_length=3,max_length=120)
 
 @router.post("/drafts")
-def save_draft(body:DraftRequest,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def save_draft(body:DraftRequest,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
  order=db.execute(text("SELECT subtotal,status FROM sales.sales_orders WHERE id=:id FOR UPDATE"),{"id":body.order_id}).mappings().first()
  if not order:raise HTTPException(404,"Order not found")
  if order["status"]!="pending_payment":raise HTTPException(409,"Order is not awaiting payment")
@@ -44,7 +44,7 @@ def save_draft(body:DraftRequest,identity:dict=Depends(staff_identity),db:Sessio
          "payable":False,"reason":"Tax, discount and freight policy have not been independently approved"}
 
 @router.get("/orders/{order_id}")
-def get_total(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def get_total(order_id:UUID,identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
  row=db.execute(text("""SELECT subtotal,discount,delivery_fee,tax_amount,total,currency,
  review_status,policy_reference,approved_at FROM finance.order_totals WHERE sales_order_id=:id"""),{"id":order_id}).mappings().first()
  if not row:raise HTTPException(404,"Order total not prepared")
