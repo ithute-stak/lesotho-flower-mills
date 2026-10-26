@@ -11,8 +11,8 @@
   }
 }
 {$LFM_ADMIN_DOMAIN} {
-  @outside_admin not remote_ip private_ranges
-  respond @outside_admin "Internal portal requires private network access" 403
+  # Internal portals are deliberately closed until a verified identity-aware gateway is integrated.
+  respond "Internal portal access is not activated" 403
   encode zstd gzip
   reverse_proxy admin-web:3001
   header {
@@ -21,8 +21,8 @@
   }
 }
 {$LFM_WAREHOUSE_DOMAIN} {
-  @outside_warehouse not remote_ip private_ranges
-  respond @outside_warehouse "Internal portal requires private network access" 403
+  # Private peer addresses alone do not prove the original user identity.
+  respond "Internal portal access is not activated" 403
   encode zstd gzip
   reverse_proxy warehouse-web:3002
   header Strict-Transport-Security "max-age=31536000"
