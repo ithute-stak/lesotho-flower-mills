@@ -1,0 +1,5 @@
+# Phase 65 — Central staff identity-link governance
+
+Added finance-administrator-only APIs to request an inactive association of a central issuer/subject with an active LFM staff account, independently review it and revoke it. A separate reviewer must approve activation. Request, verification and revocation events are written atomically and protected from UPDATE/DELETE by a PostgreSQL trigger. No links are automatically activated, and existing central login remains disabled.
+
+**Critical outstanding requirement:** The current review endpoint records a human administrator's approval, but **does not independently prove control or ownership of the central Ithute subject**. Never activate these bindings in production without a verified central identity attestation or authenticated account-linking ceremony, issuer allowlisting, independent checks for the subject/target, and full PostgreSQL integration testing. Existing finance grants require manually provisioned finance administrators and central login is not enabled. This is an initial administrative scaffold, not production-ready identity onboarding.
