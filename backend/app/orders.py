@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from .authorization import staff_identity
 from .db import db_session
 from .stock import reserve_quantity
+from .finance_permissions import finance_admin
 
 router=APIRouter(prefix="/api/v1/admin/orders",tags=["sales-orders"])
 
@@ -55,7 +56,7 @@ def create_order(body:CreateOrder,identity:dict=Depends(staff_identity),db:Sessi
 
 
 @router.post("/{order_id}/cancel")
-def cancel_unpaid_order(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def cancel_unpaid_order(order_id:UUID,identity:dict=Depends(finance_admin),db:Session=Depends(db_session)):
     """Release stock only for a pending, unpaid order, under row locks."""
     order=db.execute(text("""SELECT id,quotation_id,status FROM sales.sales_orders
       WHERE id=:id FOR UPDATE"""),{"id":order_id}).mappings().first()
