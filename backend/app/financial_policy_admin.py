@@ -6,7 +6,7 @@ from pydantic import BaseModel,Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from .authorization import staff_identity
+from .finance_permissions import finance_read,finance_review,finance_admin
 from .db import db_session
 
 router=APIRouter(prefix="/api/v1/admin/financial-policies",tags=["financial-policies"])
@@ -18,7 +18,7 @@ class NewPolicy(BaseModel):
  max_discount_bps:int=Field(ge=0,le=10000)
 
 @router.post("",status_code=201)
-def create_policy(body:NewPolicy,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def create_policy(body:NewPolicy,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
  pid=uuid4()
  try:
   db.execute(text("""INSERT INTO finance.financial_policies
