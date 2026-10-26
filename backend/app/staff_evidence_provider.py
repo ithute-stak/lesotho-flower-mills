@@ -36,6 +36,9 @@ def check_staff_with_provider(token,verifier,provider:TrustedStaffEvidenceProvid
   raise PermissionError("Trusted staff evidence unavailable") from exc
  if not isinstance(evidence,VerifiedStaffEvidence):
   raise PermissionError("Untrusted staff evidence format")
+ if any(type(value) is not bool for value in
+        (evidence.active,evidence.member,evidence.mfa,evidence.session_active)):
+  raise PermissionError("Staff evidence must contain verified boolean decisions")
  if evidence.subject!=claims["sub"] or evidence.issuer!=verifier.issuer:
   raise PermissionError("Staff evidence issuer or subject mismatch")
  if not expected_organization or evidence.organization_id!=expected_organization:
@@ -43,7 +46,7 @@ def check_staff_with_provider(token,verifier,provider:TrustedStaffEvidenceProvid
  if not 1<=max_evidence_age_seconds<=300:
   raise PermissionError("Invalid staff evidence freshness policy")
  stamp=evidence.verified_at
- if stamp is None or stamp.tzinfo is None:
+ if not isinstance(stamp,datetime) or stamp.tzinfo is None or stamp.utcoffset() is None:
   raise PermissionError("Staff evidence freshness unavailable")
  age=(datetime.now(timezone.utc)-stamp).total_seconds()
  if age < -30 or age > max_evidence_age_seconds:
