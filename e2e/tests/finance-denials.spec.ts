@@ -31,3 +31,20 @@ test("ungranted administrator cannot read payment ledger or record a payment",as
  const confirm=await request.post("http://127.0.0.1:8000/api/v1/admin/finance/orders/"+id+"/confirm-payment",{headers});
  expect(confirm.status()).toBe(403);
 });
+
+test("ungranted administrator cannot use checkout and order-total operations",async({request})=>{
+ const token=await login(request,"e2e-warehouse@example.invalid","e2e-synthetic-only-password");
+ const headers={authorization:"Bearer "+token};
+ const id="00000000-0000-0000-0000-000000000001";
+ const root="http://127.0.0.1:8000/api/v1";
+ const checks=[
+  request.post(root+"/admin/ithute-pay/checkouts",{headers,data:{order_id:id}}),
+  request.get(root+"/admin/ithute-pay/orders/"+id+"/attempt",{headers}),
+  request.get(root+"/admin/order-total-review/orders/"+id,{headers}),
+  request.get(root+"/admin/payment-gateway/providers",{headers}),
+  request.post(root+"/admin/payment-gateway/initiate",{headers,data:{order_id:id,provider:"sandbox"}}),
+  request.post(root+"/admin/order-total-review/drafts",{headers,data:{
+   order_id:id,tax_rate_bps:0,policy_reference:"ci-policy"}})
+ ];
+ for(const pending of checks)expect((await pending).status()).toBe(403);
+});
