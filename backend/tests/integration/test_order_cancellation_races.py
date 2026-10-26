@@ -38,6 +38,7 @@ def committed_order():
   with engine.begin() as db:
    audited=db.execute(text("SELECT 1 FROM sales.order_cancellation_events WHERE order_id IN (SELECT id FROM sales.sales_orders WHERE quotation_id=:q)"),{"q":quote}).first()
    if audited is None:
+    db.execute(text("DELETE FROM finance.checkout_attempts WHERE sales_order_id IN (SELECT id FROM sales.sales_orders WHERE quotation_id=:q)"),{"q":quote})
     db.execute(text("DELETE FROM inventory.stock_reservations WHERE quotation_item_id=:i"),{"i":item})
     db.execute(text("DELETE FROM sales.sales_orders WHERE quotation_id=:q"),{"q":quote})
     db.execute(text("DELETE FROM sales.quotation_items WHERE id=:i"),{"i":item})
@@ -78,3 +79,40 @@ def test_order_lock_serializes_checkout_after_cancellation(committed_order):
     checkout.execute(text("SELECT id FROM sales.sales_orders WHERE id=:id FOR UPDATE"),{"id":order_id}).first()
    checkout.rollback()
   cancellation.rollback()
+
+def test_checkout_attempt_wins_and_cancellation_must_reject(committed_order):
+ """A committed checkout attempt must block a waiting cancellation."""
+ from threading import Event
+ engine,order_id,warehouse,product=committed_order
+ locked=Event()
+ release=Event()
+ def checkout():
+  with Session(engine) as db:
+   row=db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id FOR UPDATE"),{"id":order_id}).one()
+   assert row.status=="pending_payment"
+   locked.set()
+   assert release.wait(15)
+   db.execute(text("""INSERT INTO finance.checkout_attempts
+    (id,sales_order_id,idempotency_key,state,amount,created_by)
+    VALUES (:id,:order,:key,'initiating',430,'ci')"""),
+    {"id":uuid4(),"order":order_id,"key":"ci-"+uuid4().hex})
+   db.commit()
+ def cancel():
+  with Session(engine) as db:
+   try:
+    cancel_unpaid_order(order_id,{"sub":"ci-finance-admin"},db)
+    return "cancelled"
+   except HTTPException as exc:
+    db.rollback()
+    return exc.status_code
+ with ThreadPoolExecutor(max_workers=2) as pool:
+  first=pool.submit(checkout)
+  assert locked.wait(15)
+  second=pool.submit(cancel)
+  release.set()
+  first.result(timeout=20)
+  assert second.result(timeout=20)==409
+ with engine.connect() as db:
+  assert db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id"),{"id":order_id}).scalar_one()=="pending_payment"
+  assert db.execute(text("SELECT reserved FROM inventory.stock_balances WHERE warehouse_id=:w AND product_id=:p"),{"w":warehouse,"p":product}).scalar_one()==4
+  assert db.execute(text("SELECT COUNT(*) FROM sales.order_cancellation_events WHERE order_id=:id"),{"id":order_id}).scalar_one()==0
