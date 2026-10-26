@@ -1,0 +1,25 @@
+name: Deployment Config
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  compose-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate combined Compose syntax and variables
+        env:
+          POSTGRES_DB: lfm_test
+          POSTGRES_USER: lfm_ci
+          POSTGRES_PASSWORD: ci-only-not-production
+          DATABASE_URL: postgresql+psycopg://lfm_ci:ci-only-not-production@db:5432/lfm_test
+          AUTH_SECRET: ci-only-random-looking-test-key-0123456789
+          ACME_EMAIL: ci@example.invalid
+          LFM_CUSTOMER_DOMAIN: customer.example.invalid
+          LFM_ADMIN_DOMAIN: admin.example.invalid
+          LFM_WAREHOUSE_DOMAIN: warehouse.example.invalid
+          LFM_DRIVER_DOMAIN: driver.example.invalid
+        run: |
+          docker compose -f compose.yaml -f compose.production.yaml -f compose.https.yaml config --quiet
+          docker compose -f compose.yaml -f compose.production.yaml config --quiet
