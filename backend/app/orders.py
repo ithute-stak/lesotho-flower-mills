@@ -71,6 +71,12 @@ def cancel_unpaid_order(order_id:UUID,identity:dict=Depends(finance_admin),db:Se
     if db.execute(text("""SELECT 1 FROM finance.checkout_sessions
       WHERE sales_order_id=:order LIMIT 1 FOR UPDATE"""),{"order":order_id}).first():
         raise HTTPException(409,"Checkout activity requires financial reconciliation before cancellation")
+    if db.execute(text("""SELECT 1 FROM finance.checkout_attempts
+      WHERE sales_order_id=:order LIMIT 1"""),{"order":order_id}).first():
+        raise HTTPException(409,"Checkout attempt requires reconciliation before cancellation")
+    if db.execute(text("""SELECT 1 FROM finance.payment_transactions
+      WHERE sales_order_id=:order LIMIT 1"""),{"order":order_id}).first():
+        raise HTTPException(409,"Payment transaction requires reconciliation before cancellation")
     reservations=db.execute(text("""SELECT sr.id,sr.warehouse_id,sr.product_id,sr.quantity
       FROM inventory.stock_reservations sr
       JOIN sales.quotation_items qi ON qi.id=sr.quotation_item_id
