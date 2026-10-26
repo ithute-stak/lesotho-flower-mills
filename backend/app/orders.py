@@ -83,5 +83,9 @@ def cancel_unpaid_order(order_id:UUID,identity:dict=Depends(staff_identity),db:S
           WHERE id=:id AND status='active'"""),{"id":reservation["id"]})
     db.execute(text("""UPDATE sales.sales_orders SET status='cancelled'
       WHERE id=:id AND status='pending_payment'"""),{"id":order_id})
+    db.execute(text("""INSERT INTO sales.order_cancellation_events
+      (id,order_id,actor_subject,released_count)
+      VALUES (:id,:order,:actor,:count)"""),
+      {"id":uuid4(),"order":order_id,"actor":identity["sub"],"count":len(reservations)})
     db.commit()
     return {"id":str(order_id),"status":"cancelled","released_reservations":len(reservations)}
