@@ -1,0 +1,5 @@
+# Staff evidence issuer, organisation and freshness hardening
+
+Previous main CI, Browser Smoke, Docker Network Isolation, Full Stack Network Isolation and Deployment Config succeeded. The staff evidence adapter now requires the evidence issuer to match the verified token issuer, a nonempty expected organisation identifier to match the evidence organisation scope, and a timezone-aware backend verification timestamp no older than 120 seconds by default (configurable only within 1–300 seconds). Missing, future-dated or stale evidence fails closed. Tests cover issuer mismatch, organisation mismatch, stale evidence, and existing invalid staff permissions.
+
+The adapter remains a non-exposed component. No trustworthy live Ithute Auth evidence source, gateway endpoint or verification of external membership has been deployed. Repeated token verification inside the adapter is conservative and must be revisited during real gateway integration. Public admin and warehouse ingress remains blocked; live finance, refunds, dispatch and pilot remain unapproved.
