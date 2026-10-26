@@ -14,7 +14,6 @@
   # Internal portals are deliberately closed until a verified identity-aware gateway is integrated.
   respond "Internal portal access is not activated" 403
   encode zstd gzip
-  reverse_proxy admin-web:3001
   header {
     Strict-Transport-Security "max-age=31536000"
     X-Content-Type-Options "nosniff"
@@ -24,7 +23,6 @@
   # Private peer addresses alone do not prove the original user identity.
   respond "Internal portal access is not activated" 403
   encode zstd gzip
-  reverse_proxy warehouse-web:3002
   header Strict-Transport-Security "max-age=31536000"
 }
 {$LFM_DRIVER_DOMAIN} {
