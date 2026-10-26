@@ -1,0 +1,9 @@
+# Optional internal-only access overlay. Do NOT expose via public edge.
+# Operate only behind an independently authenticated VPN or identity-aware gateway.
+services:
+  admin-web:
+    ports: !override
+      - "127.0.0.1:3001:3001"
+  warehouse-web:
+    ports: !override
+      - "127.0.0.1:3002:3002"
