@@ -34,6 +34,7 @@ class SyntheticDb:
    self.order={"id":params["id"],"status":"pending_payment","quotation_id":self.quote}
    return Result(rowcount=1)
   if "INSERT INTO inventory.stock_reservations" in sql:return Result(rowcount=1)
+  if "FROM finance.checkout_sessions" in sql:return Result()
   if "FROM sales.sales_orders WHERE id" in sql:
    return Result(self.order)
   raise AssertionError("Unexpected SQL in synthetic workflow: "+sql[:130])
