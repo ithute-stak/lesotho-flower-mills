@@ -1,0 +1,46 @@
+# Apply on top of compose.yaml for controlled deployments.
+# HTTPS must terminate at an independently configured reverse proxy.
+services:
+  api:
+    environment:
+      LFM_ENV: production
+      LFM_SANDBOX_PAYMENTS_ENABLED: "false"
+      LFM_ITHUTE_PAY_CHECKOUT_ENABLED: "false"
+      LFM_E2E_SEED: "false"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+  customer-web:
+    environment:
+      NODE_ENV: production
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+  admin-web:
+    environment:
+      NODE_ENV: production
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+  warehouse-web:
+    environment:
+      NODE_ENV: production
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+  driver-web:
+    environment:
+      NODE_ENV: production
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
