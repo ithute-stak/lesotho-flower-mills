@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import create_engine,text
 from sqlalchemy.orm import Session
-from app.orders import CreateOrder,create_order
+from app.orders import CreateOrder,create_order,cancel_unpaid_order
 
 pytestmark=pytest.mark.skipif(not os.getenv("LFM_TEST_DATABASE_URL"),reason="PostgreSQL required")
 
@@ -73,3 +73,32 @@ def test_shortage_rolls_back_all_reservations_and_order(order_db):
  assert exc.value.status_code==409
  assert tuple(snapshot(db,warehouse,product))==(3,0)
  assert db.execute(text("SELECT COUNT(*) FROM sales.sales_orders WHERE quotation_id=:q"),{"q":quote}).scalar_one()==0
+
+def test_cancel_releases_once_and_preserves_on_hand(order_db):
+ db,quote,warehouse,product=order_db
+ order=create_order(CreateOrder(quotation_id=quote,warehouse_id=warehouse),
+                    {"sub":"ci-staff"},db)
+ assert tuple(snapshot(db,warehouse,product))==(5,4)
+ result=cancel_unpaid_order(order["id"],{"sub":"ci-staff"},db)
+ assert result["status"]=="cancelled"
+ assert result["released_reservations"]==1
+ assert tuple(snapshot(db,warehouse,product))==(5,0)
+ with pytest.raises(HTTPException) as exc:
+  cancel_unpaid_order(order["id"],{"sub":"ci-staff"},db)
+ assert exc.value.status_code==409
+ assert tuple(snapshot(db,warehouse,product))==(5,0)
+ assert db.execute(text("""SELECT COUNT(*) FROM inventory.stock_reservations
+  WHERE status='active' AND quotation_item_id IN
+  (SELECT id FROM sales.quotation_items WHERE quotation_id=:q)"""),{"q":quote}).scalar_one()==0
+
+def test_confirmed_order_cannot_cancel_or_release(order_db):
+ db,quote,warehouse,product=order_db
+ order=create_order(CreateOrder(quotation_id=quote,warehouse_id=warehouse),
+                    {"sub":"ci-staff"},db)
+ db.execute(text("UPDATE sales.sales_orders SET status='confirmed' WHERE id=:id"),
+            {"id":order["id"]})
+ db.commit()
+ with pytest.raises(HTTPException) as exc:
+  cancel_unpaid_order(order["id"],{"sub":"ci-staff"},db)
+ assert exc.value.status_code==409
+ assert tuple(snapshot(db,warehouse,product))==(5,4)
