@@ -1,4 +1,5 @@
 import {test,expect} from "@playwright/test";
+test.skip(process.env.LFM_BACKEND_E2E!=="true","Requires isolated PostgreSQL-backed API");
 
 test("warehouse authenticates against real isolated FastAPI and PostgreSQL",async({page})=>{
  await page.goto("http://127.0.0.1:3102");
