@@ -1,3 +1,9 @@
+import os
+from .config_preflight import assert_safe_production_configuration
+
+if os.getenv("LFM_ENV")=="production":
+    assert_safe_production_configuration()
+
 from fastapi import FastAPI
 from .commerce import router as commerce_router
 from .accounts import router as accounts_router
