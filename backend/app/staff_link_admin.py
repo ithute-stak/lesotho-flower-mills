@@ -34,10 +34,14 @@ def _event(db,link_id,action,actor):
 
 @router.post("/{link_id}/verify")
 def verify_link(link_id:UUID,identity:dict=Depends(finance_admin),db:Session=Depends(db_session)):
- row=db.execute(text("""SELECT requested_by,active,revoked_at,local_user_id
+ row=db.execute(text("""SELECT requested_by,active,revoked_at,local_user_id,issuer,central_subject,
+ attested_issuer,attested_subject,attested_at,attestation_reference
  FROM identity.central_staff_links WHERE id=:id FOR UPDATE"""),{"id":link_id}).mappings().first()
  if not row:raise HTTPException(404,"Identity link not found")
  if row["active"] or row["revoked_at"]:raise HTTPException(409,"Link already reviewed or revoked")
+ if (row["attested_at"] is None or not row["attestation_reference"] or
+     row["attested_issuer"]!=row["issuer"] or row["attested_subject"]!=row["central_subject"]):
+  raise HTTPException(409,"Verified central identity ownership attestation required")
  if identity["sub"] in (row["requested_by"],str(row["local_user_id"])):
   raise HTTPException(403,"Independent reviewer required")
  db.execute(text("""UPDATE identity.central_staff_links SET active=true,
