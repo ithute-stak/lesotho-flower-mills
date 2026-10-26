@@ -28,7 +28,14 @@ def check_staff_with_provider(token,verifier,provider:TrustedStaffEvidenceProvid
  if provider is None:
   raise PermissionError("No approved identity evidence provider configured")
  claims=verifier.verify(token)
- evidence=provider.get_verified_evidence(verifier.issuer,claims["sub"])
+ if not isinstance(claims,dict) or not isinstance(claims.get("sub"),str) or not claims["sub"].strip():
+  raise PermissionError("Verified staff subject unavailable")
+ try:
+  evidence=provider.get_verified_evidence(verifier.issuer,claims["sub"])
+ except Exception as exc:
+  raise PermissionError("Trusted staff evidence unavailable") from exc
+ if not isinstance(evidence,VerifiedStaffEvidence):
+  raise PermissionError("Untrusted staff evidence format")
  if evidence.subject!=claims["sub"] or evidence.issuer!=verifier.issuer:
   raise PermissionError("Staff evidence issuer or subject mismatch")
  if not expected_organization or evidence.organization_id!=expected_organization:
