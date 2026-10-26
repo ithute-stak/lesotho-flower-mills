@@ -9,7 +9,7 @@ from fastapi import APIRouter,Depends,HTTPException
 from pydantic import BaseModel,Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from .authorization import staff_identity
+from .finance_permissions import finance_read,finance_review,finance_admin
 from .db import db_session
 
 router=APIRouter(prefix="/api/v1/admin/finance",tags=["finance"])
@@ -21,7 +21,7 @@ class PaymentRecord(BaseModel):
     amount:Decimal=Field(gt=0,max_digits=18,decimal_places=2)
 
 @router.post("/payments",status_code=201)
-def record_payment(body:PaymentRecord,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def record_payment(body:PaymentRecord,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
     # A staff-entered payment is UNVERIFIED: it cannot authorise stock release.
     order=db.execute(text("SELECT id FROM sales.sales_orders WHERE id=:id"),{"id":body.order_id}).first()
     if not order:raise HTTPException(404,"Order not found")
@@ -40,14 +40,14 @@ def record_payment(body:PaymentRecord,identity:dict=Depends(staff_identity),db:S
     return {"id":str(pid),"verification_status":"pending","authorised":False}
 
 @router.get("/orders/{order_id}/payments")
-def order_payments(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def order_payments(order_id:UUID,identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
     rows=db.execute(text("""SELECT id,provider,provider_reference,amount,currency,verification_status,
       created_at,verified_at FROM finance.payment_transactions
       WHERE sales_order_id=:order ORDER BY created_at DESC"""),{"order":order_id}).mappings().all()
     return [dict(r) for r in rows]
 
 @router.post("/orders/{order_id}/confirm-payment")
-def confirm_paid_order(order_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def confirm_paid_order(order_id:UUID,identity:dict=Depends(finance_admin),db:Session=Depends(db_session)):
     order=db.execute(text("""SELECT id,status,subtotal FROM sales.sales_orders
        WHERE id=:id FOR UPDATE"""),{"id":order_id}).mappings().first()
     if not order:raise HTTPException(404,"Order not found")
