@@ -11,4 +11,8 @@ with engine.begin() as db:
  db.execute(text("""INSERT INTO identity.users(id,email,password_hash,role,active)
  VALUES(:id,'e2e-warehouse@example.invalid',:password,'admin',true)"""),
  {"id":uuid4(),"password":hash_password("e2e-synthetic-only-password")})
+with engine.begin() as db:
+ db.execute(text("""INSERT INTO identity.users(id,email,password_hash,role,active)
+ VALUES(:id,'e2e-customer@example.invalid',:password,'customer',true)"""),
+ {"id":uuid4(),"password":hash_password("e2e-customer-test-password")})
 engine.dispose()
