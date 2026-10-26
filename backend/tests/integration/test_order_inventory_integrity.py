@@ -142,3 +142,21 @@ def test_two_product_release_rolls_back_if_second_balance_is_missing(order_db):
  assert tuple(snapshot(db,warehouse,first_product))==(5,4)
  assert db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id"),{"id":order["id"]}).scalar_one()=="pending_payment"
  assert db.execute(text("SELECT COUNT(*) FROM sales.order_cancellation_events WHERE order_id=:id"),{"id":order["id"]}).scalar_one()==0
+
+def test_checkout_session_blocks_cancellation_and_preserves_reservations(order_db):
+ db,quote,warehouse,product=order_db
+ order=create_order(CreateOrder(quotation_id=quote,warehouse_id=warehouse),
+                    {"sub":"ci-staff"},db)
+ checkout=uuid4()
+ token=uuid4().hex
+ db.execute(text("""INSERT INTO finance.checkout_sessions
+ (id,sales_order_id,provider_session_id,idempotency_key,amount,created_by)
+ VALUES (:id,:order,:provider,:key,430,'ci-staff')"""),
+ {"id":checkout,"order":order["id"],"provider":"ci-"+token,"key":"ci-"+token})
+ db.commit()
+ with pytest.raises(HTTPException) as exc:
+  cancel_unpaid_order(order["id"],{"sub":"ci-staff"},db)
+ assert exc.value.status_code==409
+ assert tuple(snapshot(db,warehouse,product))==(5,4)
+ assert db.execute(text("SELECT status FROM sales.sales_orders WHERE id=:id"),{"id":order["id"]}).scalar_one()=="pending_payment"
+ assert db.execute(text("SELECT COUNT(*) FROM sales.order_cancellation_events WHERE order_id=:id"),{"id":order["id"]}).scalar_one()==0
