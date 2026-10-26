@@ -47,14 +47,15 @@ class TrustedJWKSCache:
    return self._keys
   try:
    if self.client is None:
-    # Unpinned DNS-to-TLS connections are forbidden pending audited transport.
-    raise ValueError("Production JWKS transport not approved")
-   response=self.client.get(self.url)
-   if response.status_code!=200 or len(response.content)>65536:
-    raise ValueError("JWKS fetch rejected")
-   if response.headers.get("content-type","").split(";")[0].strip().lower()!="application/json":
-    raise ValueError("Unexpected JWKS content type")
-   data=response.json()
+    from .ithute_pinned_https import fetch_pinned_jwks
+    data=fetch_pinned_jwks(self.url)
+   else:
+    response=self.client.get(self.url)
+    if response.status_code!=200 or len(response.content)>65536:
+     raise ValueError("JWKS fetch rejected")
+    if response.headers.get("content-type","").split(";")[0].strip().lower()!="application/json":
+     raise ValueError("Unexpected JWKS content type")
+    data=response.json()
    if not isinstance(data,dict) or not isinstance(data.get("keys"),list) or not 1<=len(data["keys"])<=20:
     raise ValueError("Invalid JWKS keys")
    if not all(isinstance(k,dict) and k.get("kty")=="RSA" and isinstance(k.get("kid"),str)
