@@ -39,7 +39,7 @@ def fetch_pinned_jwks(url:str,*,resolver=None,connection_factory=None):
   if response.status!=200 or response.getheader("Content-Type","").split(";")[0].strip().lower()!="application/json":
    raise ValueError("Untrusted JWKS response")
   length=response.getheader("Content-Length")
-  if length is not None and int(length)>65536:
+  if length not in (None,"") and (not length.isdecimal() or int(length)>65536):
    raise ValueError("Oversized JWKS")
   body=response.read(65537)
   if len(body)>65536:
