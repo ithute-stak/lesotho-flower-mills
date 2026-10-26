@@ -16,6 +16,8 @@ services:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    networks:
+      - public_edge
     depends_on:
       - customer-web
       - admin-web
@@ -27,6 +29,17 @@ services:
       - ALL
     cap_add:
       - NET_BIND_SERVICE
+  customer-web:
+    networks:
+      - public_edge
+      - default
+  driver-web:
+    networks:
+      - public_edge
+      - default
+networks:
+  public_edge:
+    driver: bridge
 volumes:
   caddy_data:
   caddy_config:
