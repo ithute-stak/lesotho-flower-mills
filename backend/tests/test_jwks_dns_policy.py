@@ -13,6 +13,13 @@ def test_dns_rejects_private_and_mixed_addresses(addresses):
  with pytest.raises(ValueError):
   validate_public_dns("auth.example",fake_dns(addresses))
 
-def test_real_fetch_disabled_without_pinned_tls_transport():
- with pytest.raises(ValueError,match="Trusted JWKS retrieval failed"):
-  TrustedJWKSCache("https://auth.example/jwks").get()
+def test_cache_uses_pinned_transport_when_no_http_client(monkeypatch):
+ from app import ithute_pinned_https
+ calls=[]
+ def stub(url):
+  calls.append(url)
+  return {"keys":[{"kty":"RSA","kid":"ci-key","n":"AQAB","e":"AQAB"}]}
+ monkeypatch.setattr(ithute_pinned_https,"fetch_pinned_jwks",stub)
+ value=TrustedJWKSCache("https://auth.example/jwks").get()
+ assert value["keys"][0]["kid"]=="ci-key"
+ assert calls==["https://auth.example/jwks"]
