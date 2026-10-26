@@ -36,3 +36,21 @@ def test_revoked_finance_grant_denies_existing_identity_immediately():
   outer.rollback()
   connection.close()
   engine.dispose()
+
+def test_granted_administrator_cannot_request_own_finance_role():
+ from app.finance_role_admin import GrantRequest,request_grant
+ engine=create_engine(os.environ["LFM_TEST_DATABASE_URL"])
+ connection=engine.connect()
+ outer=connection.begin()
+ db=Session(bind=connection,join_transaction_mode="create_savepoint")
+ identity={"sub":"ci-selfgrant-"+uuid4().hex,"role":"admin"}
+ try:
+  with pytest.raises(HTTPException) as error:
+   request_grant(GrantRequest(identity_subject=identity["sub"],role="finance_admin"),identity,db)
+  assert error.value.status_code==403
+  assert db.execute(text("SELECT COUNT(*) FROM finance.finance_grant_requests WHERE requested_by=:s"),{"s":identity["sub"]}).scalar_one()==0
+ finally:
+  db.close()
+  outer.rollback()
+  connection.close()
+  engine.dispose()
