@@ -17,3 +17,10 @@ def test_api_health_check_remains_internal():
  production=(ROOT/"compose.production.yaml").read_text()
  assert "127.0.0.1:8000/health" in production
  assert "LFM_ENV: production" in production
+
+def test_internal_portals_have_default_network_denial():
+ caddy=(ROOT/"deploy/Caddyfile").read_text()
+ for domain,matcher in (("ADMIN","outside_admin"),("WAREHOUSE","outside_warehouse")):
+  block=caddy.split("{$LFM_"+domain+"_DOMAIN} {",1)[1].split("\n}",1)[0]
+  assert "@"+matcher+" not remote_ip private_ranges" in block
+  assert 'respond @'+matcher+' "Internal portal requires private network access" 403' in block
