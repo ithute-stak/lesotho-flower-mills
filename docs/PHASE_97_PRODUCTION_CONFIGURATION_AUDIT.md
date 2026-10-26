@@ -1,0 +1,5 @@
+# Phase 97 — Production configuration audit
+
+Phase 96 main CI passed. Reviewed the existing `.env.example`, `compose.yaml`, backend image and startup. Postgres has a named data volume and no exposed host port; API and four Next.js portals bind to loopback on the host. Example environment contains placeholders and is not deployable as-is. Added `config_preflight.py` to reject placeholder/short auth secrets, malformed or unauthenticated database URLs, production synthetic E2E seeding, and production payment feature flags without a release approval mechanism. Backend startup invokes the preflight whenever `LFM_ENV=production`. Added unit regression tests covering these cases.
+
+**Operational warning:** Set `LFM_ENV=production` explicitly on any production deployment. The current Compose file does not set it, and this commit does not constitute a full Docker runtime security review. Production release needs external TLS reverse proxy, database credential management, key rotation, backup drills, image scanning, deployment approvals, protected logs, Ithute Auth integration and finance approval. Do not enable live financial features or external pilot.
