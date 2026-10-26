@@ -1,0 +1,26 @@
+name: Full Stack Network Isolation
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  full-stack-network:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      COMPOSE_PROJECT_NAME: lfm-ci-stack
+      POSTGRES_DB: lfm
+      POSTGRES_USER: lfm
+      POSTGRES_PASSWORD: ci-isolated-only
+      DATABASE_URL: postgresql+psycopg://lfm:ci-isolated-only@db:5432/lfm
+      AUTH_SECRET: ci-only-randomized-placeholder-replace-at-release-123456
+      ACME_EMAIL: ci@example.invalid
+      LFM_CUSTOMER_DOMAIN: customer.example.invalid
+      LFM_ADMIN_DOMAIN: admin.example.invalid
+      LFM_WAREHOUSE_DOMAIN: warehouse.example.invalid
+      LFM_DRIVER_DOMAIN: driver.example.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe real containers with production and HTTPS overlay
+        run: bash deploy/test_full_stack_isolation.sh
