@@ -19,6 +19,9 @@ services:
       retries: 3
       start_period: 40s
   customer-web:
+    depends_on:
+      api:
+        condition: service_healthy
     environment:
       NODE_ENV: production
     security_opt:
@@ -27,6 +30,9 @@ services:
       - ALL
     pids_limit: 256
   admin-web:
+    depends_on:
+      api:
+        condition: service_healthy
     environment:
       NODE_ENV: production
     security_opt:
@@ -35,6 +41,9 @@ services:
       - ALL
     pids_limit: 256
   warehouse-web:
+    depends_on:
+      api:
+        condition: service_healthy
     environment:
       NODE_ENV: production
     security_opt:
@@ -43,6 +52,9 @@ services:
       - ALL
     pids_limit: 256
   driver-web:
+    depends_on:
+      api:
+        condition: service_healthy
     environment:
       NODE_ENV: production
     security_opt:
