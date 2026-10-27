@@ -29,6 +29,8 @@ def create_wholesale_tier(body:WholesaleTierDraft,identity:dict=Depends(finance_
   VALUES (:id,:campaign,:product,:quantity,:discount,:actor)"""),
   {"id":tier_id,"campaign":body.campaign_id,"product":body.product_id,
    "quantity":body.minimum_quantity,"discount":body.discount_bps,"actor":identity["sub"]})
+  db.execute(text("""INSERT INTO marketing.wholesale_tier_events (id,tier_id,actor_subject,action)
+  VALUES (:id,:tier,:actor,'created')"""),{"id":uuid4(),"tier":tier_id,"actor":identity["sub"]})
   db.commit()
  except IntegrityError:
   db.rollback();raise HTTPException(409,"Quantity break already configured or invalid product")
@@ -45,6 +47,8 @@ def approve_wholesale_tier(tier_id:UUID,identity:dict=Depends(finance_admin),db:
  if row["created_by"]==identity["sub"]:raise HTTPException(403,"Creator cannot approve own tier")
  db.execute(text("""UPDATE marketing.wholesale_discount_tiers
  SET status='approved',approved_by=:actor WHERE id=:id"""),{"id":tier_id,"actor":identity["sub"]})
+ db.execute(text("""INSERT INTO marketing.wholesale_tier_events (id,tier_id,actor_subject,action)
+ VALUES (:id,:tier,:actor,'approved')"""),{"id":uuid4(),"tier":tier_id,"actor":identity["sub"]})
  db.commit()
  return {"id":str(tier_id),"status":"approved","checkout_enabled":False}
 
@@ -53,4 +57,23 @@ def list_wholesale_tiers(identity:dict=Depends(finance_read),db:Session=Depends(
  rows=db.execute(text("""SELECT id,campaign_id,product_id,minimum_quantity,discount_bps,status,
  created_by,approved_by,created_at FROM marketing.wholesale_discount_tiers
  ORDER BY created_at DESC LIMIT 200""")).mappings().all()
+ return [dict(row) for row in rows]
+
+@router.post("/{tier_id}/disable")
+def disable_wholesale_tier(tier_id:UUID,identity:dict=Depends(finance_admin),db:Session=Depends(db_session)):
+ row=db.execute(text("SELECT status FROM marketing.wholesale_discount_tiers WHERE id=:id FOR UPDATE"),{"id":tier_id}).mappings().first()
+ if row is None:raise HTTPException(404,"Wholesale tier not found")
+ if row["status"]=="disabled":raise HTTPException(409,"Wholesale tier already disabled")
+ db.execute(text("UPDATE marketing.wholesale_discount_tiers SET status='disabled' WHERE id=:id"),{"id":tier_id})
+ db.execute(text("""INSERT INTO marketing.wholesale_tier_events (id,tier_id,actor_subject,action)
+ VALUES (:id,:tier,:actor,'disabled')"""),{"id":uuid4(),"tier":tier_id,"actor":identity["sub"]})
+ db.commit()
+ return {"id":str(tier_id),"status":"disabled","checkout_enabled":False}
+
+@router.get("/{tier_id}/events")
+def wholesale_tier_events(tier_id:UUID,identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
+ exists=db.execute(text("SELECT id FROM marketing.wholesale_discount_tiers WHERE id=:id"),{"id":tier_id}).mappings().first()
+ if exists is None:raise HTTPException(404,"Wholesale tier not found")
+ rows=db.execute(text("""SELECT id,actor_subject,action,created_at FROM marketing.wholesale_tier_events
+ WHERE tier_id=:id ORDER BY created_at,id LIMIT 500"""),{"id":tier_id}).mappings().all()
  return [dict(row) for row in rows]
