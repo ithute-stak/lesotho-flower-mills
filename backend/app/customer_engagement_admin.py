@@ -18,6 +18,32 @@ class RepeatOrderDraft(BaseModel):
  quantity:int=Field(ge=1,le=1000000)
  frequency:str=Field(pattern="^(weekly|monthly)$")
 
+class ReferralDraft(BaseModel):
+ referrer_customer_id:UUID
+ referred_customer_id:UUID
+
+@router.post("/referrals",status_code=201)
+def create_referral_draft(body:ReferralDraft,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
+ if body.referrer_customer_id==body.referred_customer_id:
+  raise HTTPException(422,"Self-referrals are not permitted")
+ rid=uuid4()
+ try:
+  db.execute(text("""INSERT INTO marketing.referral_plans
+  (id,referrer_customer_id,referred_customer_id,created_by)
+  VALUES (:id,:referrer,:referred,:actor)"""),
+  {"id":rid,"referrer":body.referrer_customer_id,
+   "referred":body.referred_customer_id,"actor":identity["sub"]})
+  db.commit()
+ except IntegrityError:
+  db.rollback();raise HTTPException(409,"Duplicate referral or invalid customer")
+ return {"id":str(rid),"status":"draft","rewards_enabled":False}
+
+@router.get("/referrals")
+def list_referral_drafts(identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
+ rows=db.execute(text("""SELECT id,referrer_customer_id,referred_customer_id,status,created_by,created_at
+ FROM marketing.referral_plans ORDER BY created_at DESC LIMIT 200""")).mappings().all()
+ return [dict(r) for r in rows]
+
 @router.post("/loyalty",status_code=201)
 def create_loyalty_draft(body:LoyaltyDraft,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
  eid=uuid4()
@@ -47,5 +73,6 @@ def create_repeat_order_draft(body:RepeatOrderDraft,identity:dict=Depends(financ
 def customer_engagement_summary(identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
  loyalty=db.execute(text("SELECT COUNT(*) FROM marketing.loyalty_enrolments")).scalar_one()
  repeat=db.execute(text("SELECT COUNT(*) FROM marketing.repeat_order_templates")).scalar_one()
- return {"draft_loyalty_enrolments":loyalty,"draft_repeat_order_templates":repeat,
- "points_enabled":False,"automatic_ordering_enabled":False}
+ referrals=db.execute(text("SELECT COUNT(*) FROM marketing.referral_plans")).scalar_one()
+ return {"draft_loyalty_enrolments":loyalty,"draft_repeat_order_templates":repeat,"draft_referrals":referrals,
+ "points_enabled":False,"automatic_ordering_enabled":False,"referral_rewards_enabled":False}
