@@ -200,9 +200,15 @@ def engagement_management_report(start:date|None=None,end:date|None=None,
  AND (:end IS NULL OR e.created_at<CAST(:end AS date)+INTERVAL '1 day')
  GROUP BY DATE_TRUNC('month',e.created_at),e.action
  ORDER BY month DESC,e.action LIMIT 120"""),params).mappings().all()
- decisions=sum(int(r["decisions"]) for r in rows)
- approvals=sum(int(r["decisions"]) for r in rows if r["action"]=="approved")
- rejections=sum(int(r["decisions"]) for r in rows if r["action"]=="rejected")
+ totals=db.execute(text("""SELECT COUNT(*) AS total_decisions,
+ COUNT(*) FILTER (WHERE action='approved') AS approvals,
+ COUNT(*) FILTER (WHERE action='rejected') AS rejections
+ FROM marketing.repeat_order_review_events
+ WHERE (:start IS NULL OR created_at>=CAST(:start AS date))
+ AND (:end IS NULL OR created_at<CAST(:end AS date)+INTERVAL '1 day')"""),params).mappings().one()
+ decisions=int(totals["total_decisions"])
+ approvals=int(totals["approvals"])
+ rejections=int(totals["rejections"])
  return {"basis":"planning_review_only","kpis":{"total_decisions":decisions,"approvals":approvals,"rejections":rejections,"approval_share_percent":round(100*approvals/decisions,1) if decisions else None}, "reviewer_activity":[dict(r) for r in rows],
  "monthly_trends":[dict(r) for r in trends],"actual_sales":None,
  "actual_customer_retention":None,"automatic_ordering_enabled":False}
