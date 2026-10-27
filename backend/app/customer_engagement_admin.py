@@ -55,7 +55,9 @@ def list_repeat_orders(identity:dict=Depends(finance_read),db:Session=Depends(db
 
 @router.post("/repeat-orders/{template_id}/cancel")
 def cancel_repeat_order(template_id:UUID,body:CancelRepeatOrder,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
- if len(body.reason.strip())<5:\n  raise HTTPException(422,"Cancellation reason must have at least five non-whitespace characters")\n row=db.execute(text("""UPDATE marketing.repeat_order_templates
+ if len(body.reason.strip())<5:
+  raise HTTPException(422,"Cancellation reason must have at least five non-whitespace characters")
+ row=db.execute(text("""UPDATE marketing.repeat_order_templates
  SET status='cancelled',cancelled_by=:actor,cancelled_at=now(),cancellation_reason=:reason
  WHERE id=:id AND status='draft' RETURNING id"""),
  {"id":template_id,"actor":identity["sub"],"reason":body.reason.strip()}).first()
@@ -89,6 +91,25 @@ def create_repeat_order_draft(body:RepeatOrderDraft,identity:dict=Depends(financ
  except IntegrityError:
   db.rollback();raise HTTPException(409,"Customer or product not found")
  return {"id":str(tid),"status":"draft","automatic_ordering_enabled":False}
+
+@router.get("/reports/planning")
+def engagement_planning_report(identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
+ """Planning-only aggregates. No inference about completed orders or revenue."""
+ frequencies=db.execute(text("""SELECT frequency,status,COUNT(*) AS template_count,
+ COALESCE(SUM(quantity),0) AS planned_quantity_per_cycle
+ FROM marketing.repeat_order_templates
+ GROUP BY frequency,status ORDER BY frequency,status""")).mappings().all()
+ referrers=db.execute(text("""SELECT referrer_customer_id,COUNT(*) AS referral_count
+ FROM marketing.referral_plans GROUP BY referrer_customer_id
+ ORDER BY referral_count DESC,referrer_customer_id LIMIT 20""")).mappings().all()
+ loyalty=db.execute(text("SELECT COUNT(*) FROM marketing.loyalty_enrolments WHERE status='draft'")).scalar_one()
+ referrals=db.execute(text("SELECT COUNT(*) FROM marketing.referral_plans WHERE status='draft'")).scalar_one()
+ return {"basis":"planning_only","draft_loyalty_enrolments":loyalty,
+ "draft_referrals":referrals,"repeat_order_frequency_breakdown":[dict(r) for r in frequencies],
+ "top_referrers":[dict(r) for r in referrers],
+ "actual_repeat_orders":None,"actual_retention_rate":None,
+ "actual_referral_conversions":None,"actual_revenue":None,
+ "automatic_ordering_enabled":False,"points_enabled":False,"referral_rewards_enabled":False}
 
 @router.get("/summary")
 def customer_engagement_summary(identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
