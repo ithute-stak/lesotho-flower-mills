@@ -8,9 +8,12 @@ class Query:
  def __init__(self, rows): self.rows=rows
  def mappings(self): return self
  def all(self): return self.rows
+ def one(self): return self.rows[0]
 
 class DB:
  def execute(self, statement, params):
+  if "total_decisions" in str(statement):
+   return Query([{"total_decisions":2,"approvals":2,"rejections":0}])
   if "avg_turnaround_hours" in str(statement):
    return Query([{"actor":"reviewer","action":"approved","decisions":2,"avg_turnaround_hours":12.5}])
   return Query([{"month":"2026-10","action":"approved","decisions":2}])
