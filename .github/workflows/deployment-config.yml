@@ -89,6 +89,14 @@ jobs:
             echo "Staging script accepted missing operator approval" >&2
             exit 1
           fi
+          if LFM_STAGING_APPROVED=yes COMPOSE_PROJECT_NAME=lfm-staging-test01 COMPOSE_FILE=compose.yaml bash deploy/staging_up.sh --deploy-staging; then
+            echo "Implicit Compose override was accepted" >&2
+            exit 1
+          fi
+          if LFM_STAGING_APPROVED=yes COMPOSE_PROJECT_NAME=lfm-staging-test01 COMPOSE_PROFILES=debug bash deploy/staging_up.sh --deploy-staging; then
+            echo "Unapproved Compose profile was accepted" >&2
+            exit 1
+          fi
           if LFM_STAGING_APPROVED=yes COMPOSE_PROJECT_NAME=lfm-staging bash deploy/staging_up.sh --deploy-staging; then
             echo "Ambiguous staging project name was accepted" >&2
             exit 1
