@@ -15,7 +15,9 @@ def upgrade():
  op.create_check_constraint("ck_repeat_cancellation_details","repeat_order_templates","(status='draft' AND cancelled_at IS NULL AND cancelled_by IS NULL AND cancellation_reason IS NULL) OR (status='cancelled' AND cancelled_at IS NOT NULL AND cancelled_by IS NOT NULL AND cancellation_reason IS NOT NULL)",schema="marketing")
 
 def downgrade():
- op.execute("DELETE FROM marketing.repeat_order_templates WHERE status='cancelled'")
+ connection=op.get_bind()
+ if connection.execute(sa.text("SELECT COUNT(*) FROM marketing.repeat_order_templates WHERE status='cancelled'")).scalar_one():
+  raise RuntimeError("Refusing downgrade: cancelled repeat-order audit records exist")
  op.drop_constraint("ck_repeat_cancellation_details","repeat_order_templates",schema="marketing",type_="check")
  op.drop_constraint("ck_repeat_draft_or_cancelled","repeat_order_templates",schema="marketing",type_="check")
  op.create_check_constraint("ck_repeat_draft_only","repeat_order_templates","status='draft'",schema="marketing")
