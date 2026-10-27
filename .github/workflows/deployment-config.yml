@@ -42,3 +42,40 @@ jobs:
             -e LFM_WAREHOUSE_DOMAIN -e LFM_DRIVER_DOMAIN \
             -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10-alpine caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+      - name: Verify staging preflight accepts safe settings and rejects unsafe ones
+        env:
+          POSTGRES_DB: lfm_test
+          POSTGRES_USER: lfm_ci
+          POSTGRES_PASSWORD: ci-only-not-production
+          DATABASE_URL: postgresql+psycopg://lfm_ci:ci-only-not-production@db:5432/lfm_test
+          AUTH_SECRET: ci-only-random-looking-test-key-0123456789
+          ACME_EMAIL: ci@example.invalid
+          LFM_CUSTOMER_DOMAIN: customer.example.invalid
+          LFM_ADMIN_DOMAIN: admin.example.invalid
+          LFM_WAREHOUSE_DOMAIN: warehouse.example.invalid
+          LFM_DRIVER_DOMAIN: driver.example.invalid
+          LFM_SANDBOX_PAYMENTS_ENABLED: "false"
+          LFM_ITHUTE_PAY_CHECKOUT_ENABLED: "false"
+          LFM_E2E_SEED: "false"
+        run: |
+          bash deploy/staging_preflight.sh
+          if LFM_SANDBOX_PAYMENTS_ENABLED=true bash deploy/staging_preflight.sh; then
+            echo "Unsafe sandbox payments were accepted" >&2
+            exit 1
+          fi
+          if LFM_ITHUTE_PAY_CHECKOUT_ENABLED=true bash deploy/staging_preflight.sh; then
+            echo "Unsafe IthutePay checkout was accepted" >&2
+            exit 1
+          fi
+          if LFM_E2E_SEED=true bash deploy/staging_preflight.sh; then
+            echo "Unsafe E2E seeding was accepted" >&2
+            exit 1
+          fi
+          if LFM_ENV=production bash deploy/staging_preflight.sh; then
+            echo "Production environment was accepted as staging" >&2
+            exit 1
+          fi
+          if AUTH_SECRET= bash deploy/staging_preflight.sh; then
+            echo "Missing authentication secret was accepted" >&2
+            exit 1
+          fi
