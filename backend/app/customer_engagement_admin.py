@@ -139,7 +139,13 @@ def engagement_review_audit_csv(status:str|None=None,actor:str|None=None,start:d
  writer.writerow(["PLANNING ONLY - not evidence of customer orders or revenue"])
  writer.writerow(fields)
  for row in rows:
-  writer.writerow([("'" + str(row[k]) if str(row[k]).startswith(("=","+","-","@","\\t","\\r")) else str(row[k])) if row[k] is not None else "" for k in fields])
+  values=[]
+  for key in fields:
+   value="" if row[key] is None else str(row[key])
+   if value.lstrip().startswith(("=","+","-","@")):
+    value="'"+value
+   values.append(value)
+  writer.writerow(values)
  return Response(content=output.getvalue(),media_type="text/csv; charset=utf-8",
  headers={"Content-Disposition":"attachment; filename=customer-engagement-review-audit.csv",
  "Cache-Control":"no-store","X-Content-Type-Options":"nosniff"})
