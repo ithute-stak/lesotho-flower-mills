@@ -8,9 +8,12 @@ class Rows:
  def __init__(self,values):self.values=values
  def mappings(self):return self
  def all(self):return self.values
+ def one(self):return self.values[0]
 
 class DB:
  def execute(self,sql,params):
+  if "total_decisions" in str(sql):
+   return Rows([{"total_decisions":2,"approvals":2,"rejections":0}])
   if "avg_turnaround_hours" in str(sql):
    return Rows([{"actor":"Reviewer A","action":"approved","decisions":2,"avg_turnaround_hours":12.5}])
   return Rows([{"month":"2026-10","action":"approved","decisions":2}])
