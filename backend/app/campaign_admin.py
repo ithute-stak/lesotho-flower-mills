@@ -69,3 +69,24 @@ def list_campaigns(identity:dict=Depends(finance_read),db:Session=Depends(db_ses
  audience,starts_at,ends_at,status,created_by,approved_by
  FROM marketing.campaigns ORDER BY created_at DESC LIMIT 200""")).mappings().all()
  return [dict(row) for row in rows]
+
+@router.post("/{campaign_id}/disable")
+def disable_campaign(campaign_id:UUID,identity:dict=Depends(finance_admin),db:Session=Depends(db_session)):
+ row=db.execute(text("""SELECT status FROM marketing.campaigns
+ WHERE id=:id FOR UPDATE"""),{"id":campaign_id}).mappings().first()
+ if row is None:raise HTTPException(404,"Campaign not found")
+ if row["status"]=="disabled":raise HTTPException(409,"Campaign already disabled")
+ db.execute(text("UPDATE marketing.campaigns SET status='disabled' WHERE id=:id"),{"id":campaign_id})
+ db.execute(text("""INSERT INTO marketing.campaign_events (id,campaign_id,actor_subject,action)
+ VALUES (:id,:campaign,:actor,'disabled')"""),
+ {"id":uuid4(),"campaign":campaign_id,"actor":identity["sub"]})
+ db.commit()
+ return {"id":str(campaign_id),"status":"disabled","checkout_enabled":False}
+
+@router.get("/{campaign_id}/events")
+def campaign_events(campaign_id:UUID,identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
+ exists=db.execute(text("SELECT id FROM marketing.campaigns WHERE id=:id"),{"id":campaign_id}).mappings().first()
+ if not exists:raise HTTPException(404,"Campaign not found")
+ rows=db.execute(text("""SELECT id,actor_subject,action,created_at FROM marketing.campaign_events
+ WHERE campaign_id=:id ORDER BY created_at,id LIMIT 500"""),{"id":campaign_id}).mappings().all()
+ return [dict(row) for row in rows]
