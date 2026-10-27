@@ -175,6 +175,30 @@ def create_repeat_order_draft(body:RepeatOrderDraft,identity:dict=Depends(financ
   db.rollback();raise HTTPException(409,"Customer or product not found")
  return {"id":str(tid),"status":"draft","automatic_ordering_enabled":False}
 
+@router.get("/reports/management")
+def engagement_management_report(start:date|None=None,end:date|None=None,
+ identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
+ if start and end and start>end:
+  raise HTTPException(422,"Start date cannot follow end date")
+ params={"start":start,"end":end}
+ rows=db.execute(text("""SELECT e.actor,e.action,COUNT(*) AS decisions,
+ ROUND(AVG(EXTRACT(EPOCH FROM (e.created_at-t.created_at))/3600)::numeric,2) AS avg_turnaround_hours
+ FROM marketing.repeat_order_review_events e
+ JOIN marketing.repeat_order_templates t ON t.id=e.template_id
+ WHERE (:start IS NULL OR e.created_at>=CAST(:start AS date))
+ AND (:end IS NULL OR e.created_at<CAST(:end AS date)+INTERVAL '1 day')
+ GROUP BY e.actor,e.action ORDER BY decisions DESC,e.actor,e.action LIMIT 100"""),params).mappings().all()
+ trends=db.execute(text("""SELECT TO_CHAR(DATE_TRUNC('month',e.created_at),'YYYY-MM') AS month,
+ e.action,COUNT(*) AS decisions
+ FROM marketing.repeat_order_review_events e
+ WHERE (:start IS NULL OR e.created_at>=CAST(:start AS date))
+ AND (:end IS NULL OR e.created_at<CAST(:end AS date)+INTERVAL '1 day')
+ GROUP BY DATE_TRUNC('month',e.created_at),e.action
+ ORDER BY month DESC,e.action LIMIT 120"""),params).mappings().all()
+ return {"basis":"planning_review_only","reviewer_activity":[dict(r) for r in rows],
+ "monthly_trends":[dict(r) for r in trends],"actual_sales":None,
+ "actual_customer_retention":None,"automatic_ordering_enabled":False}
+
 @router.get("/reports/planning")
 def engagement_planning_report(identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
  """Planning-only aggregates. No inference about completed orders or revenue."""
