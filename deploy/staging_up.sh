@@ -11,8 +11,8 @@ if [[ "${LFM_STAGING_APPROVED:-}" != "yes" ]]; then
   echo "Set LFM_STAGING_APPROVED=yes only after reviewing staging isolation and access." >&2
   exit 1
 fi
-if [[ "${COMPOSE_PROJECT_NAME:-}" != lfm-staging* ]]; then
-  echo "COMPOSE_PROJECT_NAME must begin lfm-staging to prevent accidental production targeting." >&2
+if [[ ! "${COMPOSE_PROJECT_NAME:-}" =~ ^lfm-staging-[a-z0-9][a-z0-9_-]{2,30}$ ]]; then
+  echo "COMPOSE_PROJECT_NAME must match lfm-staging-<unique-name> (3-31 safe characters)." >&2
   exit 1
 fi
 bash deploy/staging_preflight.sh
