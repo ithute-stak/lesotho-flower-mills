@@ -50,6 +50,7 @@ for service_port in admin-web:3001 warehouse-web:3002 api:8000 db:5432; do
   if [ "$ready" != 1 ]; then
     echo "FAIL: $service:$port is not reachable from its intended application network" >&2
     docker compose -p "$project" "${files[@]}" ps "$service" >&2
+    docker compose -p "$project" "${files[@]}" logs --no-color --tail=120 "$service" db >&2
     exit 1
   fi
   if probe_tcp "$service" "$port"; then
