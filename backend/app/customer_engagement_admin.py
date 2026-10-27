@@ -21,6 +21,9 @@ class RepeatOrderDraft(BaseModel):
 class CancelRepeatOrder(BaseModel):
  reason:str=Field(min_length=5,max_length=500)
 
+class PlanningReview(BaseModel):
+ note:str=Field(min_length=5,max_length=500)
+
 class ReferralDraft(BaseModel):
  referrer_customer_id:UUID
  referred_customer_id:UUID
@@ -49,7 +52,7 @@ def list_referral_drafts(identity:dict=Depends(finance_read),db:Session=Depends(
 
 @router.get("/repeat-orders")
 def list_repeat_orders(identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
- rows=db.execute(text("""SELECT id,customer_id,product_id,quantity,frequency,status,created_by,created_at,cancelled_by,cancelled_at,cancellation_reason
+ rows=db.execute(text("""SELECT id,customer_id,product_id,quantity,frequency,status,created_by,created_at,cancelled_by,cancelled_at,cancellation_reason,reviewed_by,reviewed_at,review_note
  FROM marketing.repeat_order_templates ORDER BY created_at DESC,id DESC LIMIT 200""")).mappings().all()
  return [dict(row) for row in rows]
 
@@ -66,6 +69,37 @@ def cancel_repeat_order(template_id:UUID,body:CancelRepeatOrder,identity:dict=De
   raise HTTPException(409,"Template is not a draft or does not exist")
  db.commit()
  return {"id":str(template_id),"status":"cancelled","automatic_ordering_enabled":False}
+
+@router.post("/repeat-orders/{template_id}/review/{decision}")
+def review_repeat_order(template_id:UUID,decision:str,body:PlanningReview,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
+ if decision not in ("approve","reject"):
+  raise HTTPException(422,"Unsupported review decision")
+ if len(body.note.strip())<5:
+  raise HTTPException(422,"Review note must contain at least five characters")
+ actor=identity["sub"]
+ state="approved" if decision=="approve" else "rejected"
+ try:
+  row=db.execute(text("""UPDATE marketing.repeat_order_templates
+  SET status=:state,reviewed_by=:actor,reviewed_at=now(),review_note=:note
+  WHERE id=:id AND status='draft' AND created_by<>:actor RETURNING id"""),
+  {"id":template_id,"state":state,"actor":actor,"note":body.note.strip()}).first()
+  if row is None:
+   db.rollback()
+   raise HTTPException(409,"Draft not found, already reviewed or self-review prohibited")
+  db.execute(text("""INSERT INTO marketing.repeat_order_review_events
+   (id,template_id,action,actor,note) VALUES (:event,:id,:state,:actor,:note)"""),
+   {"event":uuid4(),"id":template_id,"state":state,"actor":actor,"note":body.note.strip()})
+  db.commit()
+ except Exception:
+  db.rollback()
+  raise
+ return {"id":str(template_id),"status":state,"planning_only":True,"automatic_ordering_enabled":False}
+
+@router.get("/repeat-orders/{template_id}/reviews")
+def repeat_order_reviews(template_id:UUID,identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
+ rows=db.execute(text("""SELECT action,actor,note,created_at FROM marketing.repeat_order_review_events
+ WHERE template_id=:id ORDER BY created_at DESC,id DESC LIMIT 100"""),{"id":template_id}).mappings().all()
+ return [dict(row) for row in rows]
 
 @router.post("/loyalty",status_code=201)
 def create_loyalty_draft(body:LoyaltyDraft,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
@@ -116,6 +150,8 @@ def customer_engagement_summary(identity:dict=Depends(finance_read),db:Session=D
  loyalty=db.execute(text("SELECT COUNT(*) FROM marketing.loyalty_enrolments")).scalar_one()
  repeat=db.execute(text("SELECT COUNT(*) FROM marketing.repeat_order_templates WHERE status='draft'")).scalar_one()
  cancelled=db.execute(text("SELECT COUNT(*) FROM marketing.repeat_order_templates WHERE status='cancelled'")).scalar_one()
+ approved=db.execute(text("SELECT COUNT(*) FROM marketing.repeat_order_templates WHERE status='approved'")).scalar_one()
+ rejected=db.execute(text("SELECT COUNT(*) FROM marketing.repeat_order_templates WHERE status='rejected'")).scalar_one()
  referrals=db.execute(text("SELECT COUNT(*) FROM marketing.referral_plans")).scalar_one()
- return {"draft_loyalty_enrolments":loyalty,"draft_repeat_order_templates":repeat,"cancelled_repeat_order_templates":cancelled,"draft_referrals":referrals,
+ return {"draft_loyalty_enrolments":loyalty,"draft_repeat_order_templates":repeat,"cancelled_repeat_order_templates":cancelled,"approved_repeat_order_templates":approved,"rejected_repeat_order_templates":rejected,"draft_referrals":referrals,
  "points_enabled":False,"automatic_ordering_enabled":False,"referral_rewards_enabled":False}
