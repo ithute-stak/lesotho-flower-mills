@@ -1,5 +1,18 @@
 import {test,expect} from "@playwright/test";
 
+test.skip(process.env.LFM_BACKEND_E2E!=="true","Requires isolated CI browser environment");
+
+test("ungranted finance identities cannot access engagement reporting",async({request})=>{
+ const root="http://127.0.0.1:8000/api/v1";
+ const login=await request.post(root+"/auth/login",{data:{email:"e2e-warehouse@example.invalid",password:"e2e-synthetic-only-password"}});
+ expect(login.status()).toBe(200);
+ const token=(await login.json()).access_token;
+ for(const path of ["/admin/customer-engagement/reports/management","/admin/customer-engagement/reports/management.pdf","/admin/customer-engagement/reports/review-audit"]){
+  const result=await request.get(root+path,{headers:{authorization:"Bearer "+token}});
+  expect(result.status(),path).toBe(403);
+ }
+});
+
 test("customer engagement management filters and authenticated PDF export",async({page})=>{
  const api="http://127.0.0.1:3101/api/v1";
  await page.route("**/api/v1/**",async route=>{
