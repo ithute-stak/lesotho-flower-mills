@@ -37,8 +37,21 @@ jobs:
           node-version: "22"
       - run: pip install -r backend/requirements.txt
       - run: cd backend && alembic upgrade head
+      - name: Verify customer engagement migrations and reporting regressions
+        run: |
+          cd backend
+          alembic current
+          PYTHONPATH=. pytest -q tests/test_customer_engagement_management_intelligence.py tests/test_customer_engagement_reporting_kpis.py tests/test_customer_engagement_management_pdf.py tests/test_customer_engagement_review_audit.py tests/test_repeat_order_planning_reviews.py tests/test_repeat_order_cancellations.py
       - run: PYTHONPATH=backend python e2e/seed_backend.py
       - run: PYTHONPATH=backend uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/lfm-e2e-backend.log 2>&1 &
+      - name: Wait for isolated backend readiness
+        run: |
+          for i in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:8000/health > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/lfm-e2e-backend.log
+          exit 1
       - run: npm install --no-audit --no-fund
         working-directory: apps/customer-web
       - run: npm install --no-audit --no-fund
