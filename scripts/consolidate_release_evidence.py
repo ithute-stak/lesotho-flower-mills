@@ -1,0 +1,68 @@
+"""Consolidate GitHub workflow evidence without treating CI as deployment approval."""
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+from datetime import datetime,timezone
+from pathlib import Path
+
+REQUIRED={
+ "Backend Browser E2E",
+ "Main CI",
+ "Deployment Config",
+ "Docker Network Isolation",
+ "Full Stack Network Isolation",
+ "Release Readiness Evidence",
+}
+# Workflow names must be checked against the repository's actual configured set.
+# A missing or renamed required check blocks the automated verdict.
+
+def evaluate(runs, sha):
+ by_name={}
+ for run in runs:
+  if run.get("head_sha")!=sha or run.get("event")!="push":
+   continue
+  if run.get("name") not in REQUIRED:
+   continue
+  name=run["name"]
+  if name not in by_name or (run.get("run_number",0),run.get("run_attempt",0))>(by_name[name].get("run_number",0),by_name[name].get("run_attempt",0)):
+   by_name[name]=run
+ missing=sorted(REQUIRED-by_name.keys())
+ failures={n:(r.get("conclusion") or r.get("status") or "unknown") for n,r in by_name.items() if r.get("status")!="completed" or r.get("conclusion")!="success"}
+ return {"release_sha":sha,"required_workflows":sorted(REQUIRED),
+ "checks":{n:{"status":r.get("status"),"conclusion":r.get("conclusion"),"url":r.get("html_url")} for n,r in sorted(by_name.items())},
+ "missing":missing,"not_successful":failures,
+ "ci_verdict":"PASS" if not missing and not failures else "BLOCKED",
+ "production_approved":False,"generated_at_utc":datetime.now(timezone.utc).isoformat()}
+
+def fetch_all(repo,sha,token):
+ runs=[]
+ for page in range(1,11):
+  url=f"https://api.github.com/repos/{repo}/actions/runs?head_sha={sha}&per_page=100&page={page}"
+  req=urllib.request.Request(url,headers={"Authorization":f"Bearer {token}","Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
+  with urllib.request.urlopen(req,timeout=20) as response:
+   batch=json.load(response).get("workflow_runs",[])
+  runs.extend(batch)
+  if len(batch)<100:break
+ return runs
+
+def main():
+ repo=os.environ["GITHUB_REPOSITORY"]
+ sha=os.environ["GITHUB_SHA"]
+ token=os.environ["GH_TOKEN"]
+ report=evaluate(fetch_all(repo,sha,token),sha)
+ out=Path("release-evidence")
+ out.mkdir(exist_ok=True)
+ (out/"consolidated.json").write_text(json.dumps(report,indent=2)+"\n")
+ lines=["# LFM CI release gate","",f"Commit: `{sha}`",f"CI result: **{report['ci_verdict']}**","Production approval: **NOT GRANTED**","",
+ "| Workflow | Status | Conclusion | Evidence |","|---|---|---|---|"]
+ for name in sorted(REQUIRED):
+  item=report["checks"].get(name,{})
+  lines.append(f"| {name} | {item.get('status','missing')} | {item.get('conclusion','unverified')} | {item.get('url') or '—'} |")
+ lines+=["","This report checks only matching push runs for the exact commit; it does not verify database backups, actual deployment, or business approval."]
+ (out/"consolidated.md").write_text("\n".join(lines)+"\n")
+ print(json.dumps(report,indent=2))
+ if report["ci_verdict"]!="PASS":sys.exit(1)
+
+if __name__=="__main__":main()
