@@ -36,3 +36,23 @@ def test_wrongly_named_workflow_blocks_release_even_with_successful_runs():
  result=evaluate(records,SHA,configured)
  assert result["ci_verdict"]=="BLOCKED"
  assert result["workflow_name_mismatches"]==["Main CI"]
+
+def test_evidence_api_failure_leaves_gate_blocked(monkeypatch,tmp_path):
+ import urllib.error
+ import scripts.consolidate_release_evidence as gate
+ monkeypatch.chdir(tmp_path)
+ monkeypatch.setenv("GITHUB_REPOSITORY","example/project")
+ monkeypatch.setenv("GITHUB_SHA",SHA)
+ monkeypatch.setenv("GH_TOKEN","synthetic-token")
+ def unavailable(*args):
+  raise urllib.error.URLError("synthetic network outage")
+ monkeypatch.setattr(gate,"fetch_all",unavailable)
+ import pytest
+ with pytest.raises(SystemExit) as exc:
+  gate.main()
+ assert exc.value.code==1
+ import json
+ report=json.loads((tmp_path/"release-evidence/consolidated.json").read_text())
+ assert report["ci_verdict"]=="BLOCKED"
+ assert "evidence_error" in report
+ assert report["production_approved"] is False
