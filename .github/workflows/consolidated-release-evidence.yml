@@ -1,0 +1,27 @@
+name: Consolidated Release Evidence
+on:
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  consolidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Consolidate exact-SHA push workflow results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/consolidate_release_evidence.py
+      - name: Upload pass/fail evidence, including blocked releases
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: consolidated-release-evidence
+          path: release-evidence/
+          if-no-files-found: warn
+          retention-days: 30
