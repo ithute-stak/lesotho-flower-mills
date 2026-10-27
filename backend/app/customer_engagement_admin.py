@@ -3,6 +3,11 @@ from uuid import UUID,uuid4
 from datetime import date
 import csv
 import io
+from reportlab.platypus import SimpleDocTemplate,Paragraph,Table,TableStyle,Spacer
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import mm
+from xml.sax.saxutils import escape
 from fastapi.responses import Response
 from fastapi import APIRouter,Depends,HTTPException
 from pydantic import BaseModel,Field
@@ -198,6 +203,34 @@ def engagement_management_report(start:date|None=None,end:date|None=None,
  return {"basis":"planning_review_only","reviewer_activity":[dict(r) for r in rows],
  "monthly_trends":[dict(r) for r in trends],"actual_sales":None,
  "actual_customer_retention":None,"automatic_ordering_enabled":False}
+
+@router.get("/reports/management.pdf")
+def engagement_management_pdf(start:date|None=None,end:date|None=None,
+ identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
+ report=engagement_management_report(start=start,end=end,identity=identity,db=db)
+ buffer=io.BytesIO()
+ doc=SimpleDocTemplate(buffer,pagesize=(210*mm,297*mm),leftMargin=17*mm,rightMargin=17*mm,topMargin=18*mm,bottomMargin=18*mm)
+ styles=getSampleStyleSheet()
+ story=[Paragraph("LESOTHO FLOUR MILLS",styles["Title"]),
+ Paragraph("Customer Engagement — Planning Review Management Report",styles["Heading2"]),
+ Paragraph("INTERNAL PLANNING ONLY • Not evidence of sales, customer retention, payments or fulfilled orders.",styles["Normal"]),
+ Paragraph("Reporting period: "+escape(str(start or "All available"))+" to "+escape(str(end or "All available")),styles["Normal"]),Spacer(1,8*mm),
+ Paragraph("Reviewer decisions and average turnaround",styles["Heading3"])]
+ activity=[["Reviewer","Decision","Count","Avg hours"]]
+ for item in report["reviewer_activity"]:
+  activity.append([str(item["actor"])[:42],str(item["action"]),str(item["decisions"]),str(item["avg_turnaround_hours"] if item["avg_turnaround_hours"] is not None else "N/A")])
+ if len(activity)==1:activity.append(["No planning reviews in period","","",""])
+ t=Table(activity,colWidths=[75*mm,35*mm,22*mm,35*mm],repeatRows=1,hAlign="LEFT")
+ t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#15324b")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),0.3,colors.grey),("VALIGN",(0,0),(-1,-1),"TOP"),("FONTSIZE",(0,0),(-1,-1),8),("BOTTOMPADDING",(0,0),(-1,-1),6)]))
+ story.extend([t,Spacer(1,7*mm),Paragraph("Monthly decision trend",styles["Heading3"])])
+ trends=[["Month","Decision","Count"]]
+ for item in report["monthly_trends"]:trends.append([str(item["month"]),str(item["action"]),str(item["decisions"])])
+ if len(trends)==1:trends.append(["No planning reviews in period","",""])
+ t2=Table(trends,colWidths=[55*mm,65*mm,47*mm],repeatRows=1,hAlign="LEFT")
+ t2.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#15324b")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),0.3,colors.grey),("FONTSIZE",(0,0),(-1,-1),8)]))
+ story.extend([t2,Spacer(1,8*mm),Paragraph("Approval decisions are administrative only. Automatic ordering, loyalty rewards, stock reservations and payment effects remain disabled.",styles["Normal"])])
+ doc.build(story)
+ return Response(content=buffer.getvalue(),media_type="application/pdf",headers={"Content-Disposition":"attachment; filename=customer-engagement-management.pdf","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"})
 
 @router.get("/reports/planning")
 def engagement_planning_report(identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
