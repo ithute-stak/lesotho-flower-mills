@@ -29,3 +29,10 @@ def test_other_shas_and_pr_runs_do_not_count():
  assert evaluate(records,SHA)["ci_verdict"]=="BLOCKED"
  records=[run(n,event="pull_request") for n in REQUIRED]
  assert evaluate(records,SHA)["ci_verdict"]=="BLOCKED"
+
+def test_wrongly_named_workflow_blocks_release_even_with_successful_runs():
+ records=[run(name) for name in REQUIRED]
+ configured=set(REQUIRED)-{"Main CI"}
+ result=evaluate(records,SHA,configured)
+ assert result["ci_verdict"]=="BLOCKED"
+ assert result["workflow_name_mismatches"]==["Main CI"]
