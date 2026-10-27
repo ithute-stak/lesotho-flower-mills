@@ -55,7 +55,7 @@ def list_repeat_orders(identity:dict=Depends(finance_read),db:Session=Depends(db
 
 @router.post("/repeat-orders/{template_id}/cancel")
 def cancel_repeat_order(template_id:UUID,body:CancelRepeatOrder,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
- row=db.execute(text("""UPDATE marketing.repeat_order_templates
+ if len(body.reason.strip())<5:\n  raise HTTPException(422,"Cancellation reason must have at least five non-whitespace characters")\n row=db.execute(text("""UPDATE marketing.repeat_order_templates
  SET status='cancelled',cancelled_by=:actor,cancelled_at=now(),cancellation_reason=:reason
  WHERE id=:id AND status='draft' RETURNING id"""),
  {"id":template_id,"actor":identity["sub"],"reason":body.reason.strip()}).first()
