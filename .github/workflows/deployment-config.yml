@@ -79,3 +79,17 @@ jobs:
             echo "Missing authentication secret was accepted" >&2
             exit 1
           fi
+      - name: Verify staging startup refuses deployment without explicit approval
+        run: |
+          if bash deploy/staging_up.sh; then
+            echo "Staging script accepted missing --deploy-staging flag" >&2
+            exit 1
+          fi
+          if COMPOSE_PROJECT_NAME=lfm-staging-test bash deploy/staging_up.sh --deploy-staging; then
+            echo "Staging script accepted missing operator approval" >&2
+            exit 1
+          fi
+          if LFM_STAGING_APPROVED=yes COMPOSE_PROJECT_NAME=lfm-production bash deploy/staging_up.sh --deploy-staging; then
+            echo "Staging script accepted a production-like Compose project" >&2
+            exit 1
+          fi
