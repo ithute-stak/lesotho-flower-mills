@@ -18,7 +18,7 @@ REQUIRED={
 # Workflow names must be checked against the repository's actual configured set.
 # A missing or renamed required check blocks the automated verdict.
 
-def evaluate(runs, sha):
+def evaluate(runs, sha, configured_names=None):
  by_name={}
  for run in runs:
   if run.get("head_sha")!=sha or run.get("event")!="push":
@@ -29,11 +29,12 @@ def evaluate(runs, sha):
   if name not in by_name or (run.get("run_number",0),run.get("run_attempt",0))>(by_name[name].get("run_number",0),by_name[name].get("run_attempt",0)):
    by_name[name]=run
  missing=sorted(REQUIRED-by_name.keys())
+ unmatched=sorted(REQUIRED-set(configured_names)) if configured_names is not None else []
  failures={n:(r.get("conclusion") or r.get("status") or "unknown") for n,r in by_name.items() if r.get("status")!="completed" or r.get("conclusion")!="success"}
  return {"release_sha":sha,"required_workflows":sorted(REQUIRED),
  "checks":{n:{"status":r.get("status"),"conclusion":r.get("conclusion"),"url":r.get("html_url")} for n,r in sorted(by_name.items())},
- "missing":missing,"not_successful":failures,
- "ci_verdict":"PASS" if not missing and not failures else "BLOCKED",
+ "missing":missing,"workflow_name_mismatches":unmatched,"not_successful":failures,
+ "ci_verdict":"PASS" if not missing and not failures and not unmatched else "BLOCKED",
  "production_approved":False,"generated_at_utc":datetime.now(timezone.utc).isoformat()}
 
 def fetch_all(repo,sha,token):
@@ -47,11 +48,22 @@ def fetch_all(repo,sha,token):
   if len(batch)<100:break
  return runs
 
+def fetch_workflow_names(repo,token):
+ names=set()
+ for page in range(1,11):
+  url=f"https://api.github.com/repos/{repo}/actions/workflows?per_page=100&page={page}"
+  req=urllib.request.Request(url,headers={"Authorization":f"Bearer {token}","Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
+  with urllib.request.urlopen(req,timeout=20) as response:
+   batch=json.load(response).get("workflows",[])
+  names.update(w.get("name") for w in batch if w.get("state")=="active" and w.get("name"))
+  if len(batch)<100:break
+ return names
+
 def main():
  repo=os.environ["GITHUB_REPOSITORY"]
  sha=os.environ["GITHUB_SHA"]
  token=os.environ["GH_TOKEN"]
- report=evaluate(fetch_all(repo,sha,token),sha)
+ report=evaluate(fetch_all(repo,sha,token),sha,fetch_workflow_names(repo,token))
  out=Path("release-evidence")
  out.mkdir(exist_ok=True)
  (out/"consolidated.json").write_text(json.dumps(report,indent=2)+"\n")
@@ -60,7 +72,7 @@ def main():
  for name in sorted(REQUIRED):
   item=report["checks"].get(name,{})
   lines.append(f"| {name} | {item.get('status','missing')} | {item.get('conclusion','unverified')} | {item.get('url') or '—'} |")
- lines+=["","This report checks only matching push runs for the exact commit; it does not verify database backups, actual deployment, or business approval."]
+ lines+=["",f"Configured workflow name mismatches: {', '.join(report['workflow_name_mismatches']) or 'none'}","This report checks only matching push runs for the exact commit; it does not verify database backups, actual deployment, or business approval."]
  (out/"consolidated.md").write_text("\n".join(lines)+"\n")
  print(json.dumps(report,indent=2))
  if report["ci_verdict"]!="PASS":sys.exit(1)
