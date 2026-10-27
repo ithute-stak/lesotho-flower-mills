@@ -63,7 +63,14 @@ def main():
  repo=os.environ["GITHUB_REPOSITORY"]
  sha=os.environ["GITHUB_SHA"]
  token=os.environ["GH_TOKEN"]
- report=evaluate(fetch_all(repo,sha,token),sha,fetch_workflow_names(repo,token))
+ try:
+  runs=fetch_all(repo,sha,token)
+  configured=fetch_workflow_names(repo,token)
+  report=evaluate(runs,sha,configured)
+ except (urllib.error.URLError,TimeoutError,ValueError,OSError) as exc:
+  report=evaluate([],sha,[])
+  report["evidence_error"]=f"{type(exc).__name__}: evidence retrieval failed"
+  report["ci_verdict"]="BLOCKED"
  out=Path("release-evidence")
  out.mkdir(exist_ok=True)
  (out/"consolidated.json").write_text(json.dumps(report,indent=2)+"\n")
