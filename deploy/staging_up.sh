@@ -16,8 +16,8 @@ if [[ "${COMPOSE_PROJECT_NAME:-}" != lfm-staging* ]]; then
   exit 1
 fi
 bash deploy/staging_preflight.sh
-# Only stage database, API, customer and driver app, plus public HTTPS edge.
-# Admin and warehouse are deliberately unavailable on public ingress.
-docker compose -p "$COMPOSE_PROJECT_NAME" -f compose.yaml -f compose.production.yaml -f compose.https.yaml up -d --build db api customer-web driver-web edge
+# Start private services only, without public HTTPS edge. Base Compose binds host ports to loopback.
+# Do not expose staging over the Internet until TLS/DNS/firewall access has been separately approved.
+docker compose -p "$COMPOSE_PROJECT_NAME" -f compose.yaml -f compose.production.yaml -f compose.https.yaml up -d --build db api customer-web driver-web
 docker compose -p "$COMPOSE_PROJECT_NAME" -f compose.yaml -f compose.production.yaml -f compose.https.yaml ps
-echo "Staging containers requested; verify TLS, health, firewall, data isolation and logs before testers access the host."
+echo "Staging containers requested; verify health, firewall, data isolation and logs. No public staging endpoint has been deployed."
