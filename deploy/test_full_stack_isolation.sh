@@ -38,7 +38,7 @@ for service_port in admin-web:3001 warehouse-web:3002 api:8000 db:5432; do
   # Positive control from the application network: otherwise a stopped
   # service would misleadingly count as an isolation success.
   ready=0
-  for attempt in $(seq 1 10); do
+  for attempt in $(seq 1 20); do
     if docker run --rm --network "${project}_default" \
     -e TARGET_HOST="$service" -e TARGET_PORT="$port" python:3.12-alpine \
     python -c 'import os,socket,sys; h=os.environ["TARGET_HOST"]; p=int(os.environ["TARGET_PORT"]); s=socket.socket(); s.settimeout(4); sys.exit(0 if s.connect_ex((h,p))==0 else 1)' >/dev/null 2>&1; then
@@ -49,6 +49,7 @@ for service_port in admin-web:3001 warehouse-web:3002 api:8000 db:5432; do
   done
   if [ "$ready" != 1 ]; then
     echo "FAIL: $service:$port is not reachable from its intended application network" >&2
+    docker compose -p "$project" "${files[@]}" ps "$service" >&2
     exit 1
   fi
   if probe_tcp "$service" "$port"; then
