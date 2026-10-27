@@ -200,7 +200,10 @@ def engagement_management_report(start:date|None=None,end:date|None=None,
  AND (:end IS NULL OR e.created_at<CAST(:end AS date)+INTERVAL '1 day')
  GROUP BY DATE_TRUNC('month',e.created_at),e.action
  ORDER BY month DESC,e.action LIMIT 120"""),params).mappings().all()
- return {"basis":"planning_review_only","reviewer_activity":[dict(r) for r in rows],
+ decisions=sum(int(r["decisions"]) for r in rows)
+ approvals=sum(int(r["decisions"]) for r in rows if r["action"]=="approved")
+ rejections=sum(int(r["decisions"]) for r in rows if r["action"]=="rejected")
+ return {"basis":"planning_review_only","kpis":{"total_decisions":decisions,"approvals":approvals,"rejections":rejections,"approval_share_percent":round(100*approvals/decisions,1) if decisions else None}, "reviewer_activity":[dict(r) for r in rows],
  "monthly_trends":[dict(r) for r in trends],"actual_sales":None,
  "actual_customer_retention":None,"automatic_ordering_enabled":False}
 
@@ -215,6 +218,8 @@ def engagement_management_pdf(start:date|None=None,end:date|None=None,
  Paragraph("Customer Engagement — Planning Review Management Report",styles["Heading2"]),
  Paragraph("INTERNAL PLANNING ONLY • Not evidence of sales, customer retention, payments or fulfilled orders.",styles["Normal"]),
  Paragraph("Reporting period: "+escape(str(start or "All available"))+" to "+escape(str(end or "All available")),styles["Normal"]),Spacer(1,8*mm),
+ Paragraph("Planning decisions: "+str(report["kpis"]["total_decisions"])+" | Approved: "+str(report["kpis"]["approvals"])+" | Rejected: "+str(report["kpis"]["rejections"]),styles["Normal"]),
+ Paragraph("Approval share: "+(str(report["kpis"]["approval_share_percent"])+"%" if report["kpis"]["approval_share_percent"] is not None else "N/A (no decisions)"),styles["Normal"]),Spacer(1,5*mm),
  Paragraph("Reviewer decisions and average turnaround",styles["Heading3"])]
  activity=[["Reviewer","Decision","Count","Avg hours"]]
  for item in report["reviewer_activity"]:
