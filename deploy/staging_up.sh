@@ -25,4 +25,20 @@ bash deploy/staging_preflight.sh
 # Do not expose staging over the Internet until TLS/DNS/firewall access has been separately approved.
 docker compose -p "$COMPOSE_PROJECT_NAME" -f compose.yaml -f compose.production.yaml -f compose.https.yaml up -d --build db api customer-web driver-web
 docker compose -p "$COMPOSE_PROJECT_NAME" -f compose.yaml -f compose.production.yaml -f compose.https.yaml ps
+# Validate the application, not merely container creation.
+healthy=0
+for attempt in $(seq 1 24); do
+  if docker compose -p "$COMPOSE_PROJECT_NAME" -f compose.yaml -f compose.production.yaml -f compose.https.yaml \
+    exec -T api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)" >/dev/null 2>&1; then
+    healthy=1
+    break
+  fi
+  sleep 5
+done
+if [[ "$healthy" != 1 ]]; then
+  echo "FAIL: staging API failed its HTTP health check; deployment not validated" >&2
+  docker compose -p "$COMPOSE_PROJECT_NAME" -f compose.yaml -f compose.production.yaml -f compose.https.yaml logs --no-color --tail=100 api db >&2
+  exit 1
+fi
+echo "PASS: restricted staging API health check"
 echo "Staging containers requested; verify health, firewall, data isolation and logs. No public staging endpoint has been deployed."
