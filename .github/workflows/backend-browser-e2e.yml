@@ -51,7 +51,7 @@ jobs:
         working-directory: e2e
       - run: npx playwright install --with-deps chromium
         working-directory: e2e
-      - run: npx playwright test tests/backend-auth.spec.ts tests/role-boundaries.spec.ts tests/finance-denials.spec.ts tests/finance-revocation.spec.ts
+      - run: npx playwright test tests/backend-auth.spec.ts tests/role-boundaries.spec.ts tests/finance-denials.spec.ts tests/finance-revocation.spec.ts tests/customer-engagement-management.spec.ts
         working-directory: e2e
         env:
           CI: "true"
