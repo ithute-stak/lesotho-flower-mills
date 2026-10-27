@@ -15,6 +15,11 @@ if [[ ! "${COMPOSE_PROJECT_NAME:-}" =~ ^lfm-staging-[a-z0-9][a-z0-9_-]{2,30}$ ]]
   echo "COMPOSE_PROJECT_NAME must match lfm-staging-<unique-name> (3-31 safe characters)." >&2
   exit 1
 fi
+# Never inherit an implicit production Compose file or project override.
+if [[ -n "${COMPOSE_FILE:-}" || -n "${COMPOSE_ENV_FILES:-}" || -n "${COMPOSE_PROFILES:-}" ]]; then
+  echo "Unset COMPOSE_FILE, COMPOSE_ENV_FILES and COMPOSE_PROFILES for isolated staging" >&2
+  exit 1
+fi
 bash deploy/staging_preflight.sh
 # Start private services only, without public HTTPS edge. Base Compose binds host ports to loopback.
 # Do not expose staging over the Internet until TLS/DNS/firewall access has been separately approved.
