@@ -39,6 +39,7 @@ from .campaign_budget_admin import router as campaign_budget_router
 from .campaign_stock_admin import router as campaign_stock_router
 from .wholesale_promotion_admin import router as wholesale_promotion_router
 from .wholesale_promotion_reports import router as wholesale_promotion_reports_router
+from .customer_engagement_admin import router as customer_engagement_router
 
 app = FastAPI(title="Lesotho Flour Mills API", description="Hybrid B2C/B2B commerce and distribution platform", version="0.4.0")
 app.include_router(commerce_router)
@@ -75,6 +76,7 @@ app.include_router(campaign_budget_router)
 app.include_router(campaign_stock_router)
 app.include_router(wholesale_promotion_router)
 app.include_router(wholesale_promotion_reports_router)
+app.include_router(customer_engagement_router)
 
 
 @app.get("/health", tags=["system"])
