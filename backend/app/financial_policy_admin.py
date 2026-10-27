@@ -32,7 +32,7 @@ def create_policy(body:NewPolicy,identity:dict=Depends(finance_review),db:Sessio
  return {"id":str(pid),"status":"draft","effective":False}
 
 @router.post("/{policy_id}/approve")
-def approve_policy(policy_id:UUID,identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def approve_policy(policy_id:UUID,identity:dict=Depends(finance_admin),db:Session=Depends(db_session)):
  row=db.execute(text("""SELECT created_by,status FROM finance.financial_policies
  WHERE id=:id FOR UPDATE"""),{"id":policy_id}).mappings().first()
  if not row:raise HTTPException(404,"Policy not found")
@@ -45,7 +45,7 @@ def approve_policy(policy_id:UUID,identity:dict=Depends(staff_identity),db:Sessi
  return {"id":str(policy_id),"status":"approved","requires_tax_and_tariff_validation":True}
 
 @router.get("")
-def list_policies(identity:dict=Depends(staff_identity),db:Session=Depends(db_session)):
+def list_policies(identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
  rows=db.execute(text("""SELECT id,code,version,tax_rate_bps,delivery_taxable,max_discount_bps,
  status,created_by,approved_by,effective_from FROM finance.financial_policies
  ORDER BY code,version DESC LIMIT 200""")).mappings().all()
