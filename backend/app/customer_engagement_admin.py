@@ -1,5 +1,9 @@
 """Internal customer engagement drafts; no loyalty credits or scheduled orders."""
 from uuid import UUID,uuid4
+from datetime import date
+import csv
+import io
+from fastapi.responses import Response
 from fastapi import APIRouter,Depends,HTTPException
 from pydantic import BaseModel,Field
 from sqlalchemy import text
@@ -100,6 +104,45 @@ def repeat_order_reviews(template_id:UUID,identity:dict=Depends(finance_read),db
  rows=db.execute(text("""SELECT action,actor,note,created_at FROM marketing.repeat_order_review_events
  WHERE template_id=:id ORDER BY created_at DESC,id DESC LIMIT 100"""),{"id":template_id}).mappings().all()
  return [dict(row) for row in rows]
+
+def _audit_rows(db:Session,status:str|None,actor:str|None,start:date|None,end:date|None,limit:int,offset:int):
+ if start and end and start>end:
+  raise HTTPException(422,"Start date cannot follow end date")
+ if status and status not in ("approved","rejected"):
+  raise HTTPException(422,"Unsupported review status")
+ return db.execute(text("""SELECT e.id,e.template_id,e.action,e.actor,e.note,e.created_at,
+ t.customer_id,t.product_id,t.frequency,t.quantity,t.created_by
+ FROM marketing.repeat_order_review_events e
+ JOIN marketing.repeat_order_templates t ON t.id=e.template_id
+ WHERE (:status IS NULL OR e.action=:status)
+ AND (:actor IS NULL OR e.actor=:actor)
+ AND (:start IS NULL OR e.created_at >= CAST(:start AS date))
+ AND (:end IS NULL OR e.created_at < CAST(:end AS date)+INTERVAL '1 day')
+ ORDER BY e.created_at DESC,e.id DESC LIMIT :limit OFFSET :offset"""),
+ {"status":status,"actor":actor,"start":start,"end":end,"limit":limit,"offset":offset}).mappings().all()
+
+@router.get("/reports/review-audit")
+def engagement_review_audit(status:str|None=None,actor:str|None=None,start:date|None=None,end:date|None=None,
+ limit:int=100,offset:int=0,identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
+ if not 1<=limit<=200 or not 0<=offset<=100000:
+  raise HTTPException(422,"Invalid audit pagination")
+ return {"basis":"planning_only","items":[dict(r) for r in _audit_rows(db,status,actor,start,end,limit,offset)],
+ "limit":limit,"offset":offset}
+
+@router.get("/reports/review-audit.csv")
+def engagement_review_audit_csv(status:str|None=None,actor:str|None=None,start:date|None=None,end:date|None=None,
+ identity:dict=Depends(finance_read),db:Session=Depends(db_session)):
+ rows=_audit_rows(db,status,actor,start,end,5000,0)
+ output=io.StringIO()
+ writer=csv.writer(output)
+ fields=["id","template_id","action","actor","note","created_at","customer_id","product_id","frequency","quantity","created_by"]
+ writer.writerow(["PLANNING ONLY - not evidence of customer orders or revenue"])
+ writer.writerow(fields)
+ for row in rows:
+  writer.writerow([("'" + str(row[k]) if str(row[k]).startswith(("=","+","-","@","\\t","\\r")) else str(row[k])) if row[k] is not None else "" for k in fields])
+ return Response(content=output.getvalue(),media_type="text/csv; charset=utf-8",
+ headers={"Content-Disposition":"attachment; filename=customer-engagement-review-audit.csv",
+ "Cache-Control":"no-store","X-Content-Type-Options":"nosniff"})
 
 @router.post("/loyalty",status_code=201)
 def create_loyalty_draft(body:LoyaltyDraft,identity:dict=Depends(finance_review),db:Session=Depends(db_session)):
