@@ -3,7 +3,7 @@ from scripts.consolidate_release_evidence import REQUIRED,evaluate
 SHA="a"*40
 
 def run(name,status="completed",conclusion="success",sha=SHA,event="push"):
- return {"name":name,"status":status,"conclusion":conclusion,"head_sha":sha,"event":event,"run_number":2,"run_attempt":1,"html_url":"https://github.com/example/actions/runs/1"}
+ return {"name":name,"status":status,"conclusion":conclusion,"head_sha":sha,"event":event,"head_branch":"main","run_number":2,"run_attempt":1,"html_url":"https://github.com/example/actions/runs/1"}
 
 def test_all_required_exact_sha_push_runs_can_pass():
  result=evaluate([run(name) for name in REQUIRED],SHA)
@@ -129,3 +129,10 @@ def test_required_workflow_names_match_workflow_files():
   match=re.search(r"^name:\s*(.+?)\s*$",text,re.MULTILINE)
   assert match, f"Missing workflow name in {path}"
   assert match.group(1).strip().strip("\'\"")==expected, f"Incorrect workflow name in {path}"
+
+def test_push_from_non_main_branch_cannot_satisfy_release_gate():
+ records=[run(name) for name in REQUIRED]
+ records[0]["head_branch"]="feature/not-main"
+ result=evaluate(records,SHA)
+ assert result["ci_verdict"]=="BLOCKED"
+ assert records[0]["name"] in result["missing"]
