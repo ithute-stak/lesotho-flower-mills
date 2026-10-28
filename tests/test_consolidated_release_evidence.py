@@ -126,6 +126,6 @@ def test_required_workflow_names_match_workflow_files():
  root=Path(__file__).resolve().parents[1]
  for expected,path in workflow_paths.items():
   text=(root/path).read_text()
-  match=re.search(r"^name:\\s*(.+?)\\s*$",text,re.MULTILINE)
+  match=re.search(r"^name:\s*(.+?)\s*$",text,re.MULTILINE)
   assert match, f"Missing workflow name in {path}"
-  assert match.group(1).strip('"\\'')==expected, f"Incorrect workflow name in {path}"
+  assert match.group(1).strip().strip("\'\"")==expected, f"Incorrect workflow name in {path}"
