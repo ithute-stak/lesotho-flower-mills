@@ -42,7 +42,10 @@ jobs:
           cd backend
           alembic current --check-heads
           PYTHONPATH=. pytest -q tests/test_customer_engagement_management_intelligence.py tests/test_customer_engagement_reporting_kpis.py tests/test_customer_engagement_management_pdf.py tests/test_customer_engagement_review_audit.py tests/test_repeat_order_planning_reviews.py tests/test_repeat_order_cancellations.py
-      - run: PYTHONPATH=backend python e2e/seed_backend.py
+      - name: Seed disposable E2E users
+        run: PYTHONPATH=backend python e2e/seed_backend.py
+        env:
+          CI: "true"
       - run: PYTHONPATH=backend uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/lfm-e2e-backend.log 2>&1 &
       - name: Wait for isolated backend readiness
         run: |
