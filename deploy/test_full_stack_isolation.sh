@@ -3,7 +3,16 @@ set -euo pipefail
 # Run only in disposable CI. Uses real LFM containers, not synthetic nginx stand-ins.
 project="${COMPOSE_PROJECT_NAME:-lfm-stack-isolation}"
 files=(-f compose.yaml -f compose.production.yaml -f compose.https.yaml)
-cleanup() { docker compose -p "$project" "${files[@]}" down -v --remove-orphans || true; }
+cleanup() {
+  result=$?
+  if [ "$result" -ne 0 ]; then
+    mkdir -p artifacts
+    docker compose -p "$project" "${files[@]}" ps -a > artifacts/stack-ps.txt 2>&1 || true
+    docker compose -p "$project" "${files[@]}" logs --no-color --tail=250 > artifacts/stack-logs.txt 2>&1 || true
+    docker network inspect "${project}_public_edge" > artifacts/public-edge-network.json 2>&1 || true
+  fi
+  docker compose -p "$project" "${files[@]}" down -v --remove-orphans || true
+}
 trap cleanup EXIT
 docker compose -p "$project" "${files[@]}" config --quiet
 docker compose -p "$project" "${files[@]}" up -d --build db api customer-web admin-web warehouse-web driver-web
