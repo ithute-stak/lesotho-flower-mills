@@ -197,4 +197,5 @@ def test_backend_e2e_seed_has_required_ci_opt_in():
  """The synthetic seeder refuses to run without CI=true."""
  from pathlib import Path
  workflow=(Path(__file__).resolve().parents[1]/".github/workflows/backend-browser-e2e.yml").read_text()
- assert 'run: PYTHONPATH=backend python e2e/seed_backend.py\n        env:\n          CI: "true"' in workflow
+ expected='run: PYTHONPATH=backend python e2e/seed_backend.py' + chr(10) + '        env:' + chr(10) + '          CI: "true"'
+ assert expected in workflow
