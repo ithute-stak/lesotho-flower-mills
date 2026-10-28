@@ -10,7 +10,7 @@ from pathlib import Path
 
 REQUIRED={
  "Backend Browser E2E",
- "Main CI",
+ "CI",
  "Deployment Config",
  "Docker Network Isolation",
  "Full Stack Network Isolation",
