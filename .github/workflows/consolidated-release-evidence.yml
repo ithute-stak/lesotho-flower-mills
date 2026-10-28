@@ -1,6 +1,11 @@
 name: Consolidated Release Evidence
 on:
   workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact 40-character commit SHA to verify (leave blank for current branch HEAD)
+        required: false
+        type: string
 permissions:
   actions: read
   contents: read
@@ -20,6 +25,7 @@ jobs:
       - name: Consolidate exact-SHA push workflow results
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_RELEASE_SHA: ${{ inputs.release_sha }}
         run: python scripts/consolidate_release_evidence.py
       - name: Upload pass/fail evidence, including blocked releases
         if: always()
