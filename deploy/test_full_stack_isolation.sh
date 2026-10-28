@@ -32,7 +32,21 @@ for allowed in customer-web driver-web; do
  fi
 done
 # DNS-level reachability from a disposable peer on exactly the same edge network.
-docker run --rm --network "$public_network" curlimages/curl:8.12.1 -fsS --retry 8 --retry-delay 3 --max-time 15 http://customer-web:3000/ >/dev/null
+# A protected web app may return HTTP 401/403 or redirect on /.
+# Check its TCP readiness instead of requiring an unauthenticated HTTP 2xx.
+customer_ready=0
+for attempt in $(seq 1 20); do
+  if docker run --rm --network "$public_network" python:3.12-alpine \
+    python -c 'import socket,sys; s=socket.socket(); s.settimeout(4); sys.exit(0 if s.connect_ex(("customer-web",3000))==0 else 1)' >/dev/null 2>&1; then
+    customer_ready=1
+    break
+  fi
+  sleep 3
+done
+if [ "$customer_ready" != 1 ]; then
+  echo "FAIL: customer-web:3000 cannot be reached over public_edge" >&2
+  exit 1
+fi
 # Probe TCP connections, not HTTP responses: a database or API can accept a
 # connection without returning HTTP 2xx, which would fool curl -f.
 probe_tcp() {
