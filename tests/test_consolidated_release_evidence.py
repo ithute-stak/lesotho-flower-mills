@@ -199,3 +199,10 @@ def test_backend_e2e_seed_has_required_ci_opt_in():
  workflow=(Path(__file__).resolve().parents[1]/".github/workflows/backend-browser-e2e.yml").read_text()
  expected='run: PYTHONPATH=backend python e2e/seed_backend.py' + chr(10) + '        env:' + chr(10) + '          CI: "true"'
  assert expected in workflow
+
+def test_e2e_seeder_requires_exact_local_test_database():
+ from pathlib import Path
+ source=(Path(__file__).resolve().parents[1]/"e2e/seed_backend.py").read_text()
+ assert 'database_url.database!="lfm_test"' in source
+ assert 'database_url.host not in {"localhost","127.0.0.1","::1"}' in source
+ assert 'os.environ.get("LFM_E2E_SEED")!="true"' in source
