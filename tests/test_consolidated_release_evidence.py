@@ -56,3 +56,30 @@ def test_evidence_api_failure_leaves_gate_blocked(monkeypatch,tmp_path):
  assert report["ci_verdict"]=="BLOCKED"
  assert "evidence_error" in report
  assert report["production_approved"] is False
+
+def test_explicit_release_sha_overrides_workflow_dispatch_head(monkeypatch,tmp_path):
+ import json
+ import scripts.consolidate_release_evidence as gate
+ target="b"*40
+ monkeypatch.chdir(tmp_path)
+ monkeypatch.setenv("GITHUB_REPOSITORY","example/project")
+ monkeypatch.setenv("GITHUB_SHA",SHA)
+ monkeypatch.setenv("TARGET_RELEASE_SHA",target)
+ monkeypatch.setenv("GH_TOKEN","synthetic-token")
+ monkeypatch.setattr(gate,"fetch_all",lambda repo,sha,token:[run(name,sha=sha) for name in REQUIRED])
+ monkeypatch.setattr(gate,"fetch_workflow_names",lambda repo,token:set(REQUIRED))
+ gate.main()
+ report=json.loads((tmp_path/"release-evidence/consolidated.json").read_text())
+ assert report["release_sha"]==target
+ assert report["ci_verdict"]=="PASS"
+ assert report["production_approved"] is False
+
+def test_malformed_release_sha_rejected(monkeypatch):
+ import pytest
+ import scripts.consolidate_release_evidence as gate
+ monkeypatch.setenv("GITHUB_REPOSITORY","example/project")
+ monkeypatch.setenv("GITHUB_SHA",SHA)
+ monkeypatch.setenv("TARGET_RELEASE_SHA","../../not-a-commit")
+ monkeypatch.setenv("GH_TOKEN","synthetic-token")
+ with pytest.raises(ValueError,match="40-character"):
+  gate.main()
