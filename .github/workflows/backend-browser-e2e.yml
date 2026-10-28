@@ -68,6 +68,16 @@ jobs:
         working-directory: e2e
         env:
           CI: "true"
+      - name: Print backend and test diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo "=== Backend log (last 200 lines) ==="
+          if [ -f /tmp/lfm-e2e-backend.log ]; then tail -n 200 /tmp/lfm-e2e-backend.log; fi
+          echo "=== Playwright files ==="
+          find e2e/test-results -maxdepth 3 -type f -print 2>/dev/null | head -n 50 || true
+          echo "=== PostgreSQL / backend processes ==="
+          ps aux | grep -E '[u]vicorn|[p]ytest' || true
       - name: Record release verification evidence
         if: always()
         shell: bash
