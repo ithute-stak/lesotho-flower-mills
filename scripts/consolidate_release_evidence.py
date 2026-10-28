@@ -99,7 +99,7 @@ def main():
  for name in sorted(REQUIRED):
   item=report["checks"].get(name,{})
   lines.append(f"| {name} | {item.get('status','missing')} | {item.get('conclusion','unverified')} | {item.get('url') or '—'} |")
- lines+=["",f"Selected commit on main history: {report.get(\'commit_on_main\',False)}",f"Configured workflow name mismatches: {', '.join(report['workflow_name_mismatches']) or 'none'}","This report checks only matching push runs for the exact commit; it does not verify database backups, actual deployment, or business approval."]
+ lines+=["",f"Selected commit on main history: {report.get('commit_on_main', False)}",f"Configured workflow name mismatches: {', '.join(report['workflow_name_mismatches']) or 'none'}","This report checks only matching push runs for the exact commit; it does not verify database backups, actual deployment, or business approval."]
  (out/"consolidated.md").write_text("\n".join(lines)+"\n")
  print(json.dumps(report,indent=2))
  if report["ci_verdict"]!="PASS":sys.exit(1)
