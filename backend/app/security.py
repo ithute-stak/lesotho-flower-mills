@@ -39,9 +39,14 @@ def current_identity(authorization: str | None = Header(default=None)) -> dict:
     if not secret or len(secret) < 32:
         raise HTTPException(503, "Authentication not configured")
     try:
-        payload = jwt.decode(authorization[7:], secret, algorithms=[ALGORITHM], options={"require": ["sub", "exp"]})
-        if not payload.get("sub"):
-            raise InvalidTokenError("Missing subject")
+        token = authorization[7:]
+        if not token or len(token) > 8192 or any(ch.isspace() for ch in token):
+            raise InvalidTokenError("Invalid bearer token format")
+        payload = jwt.decode(token, secret, algorithms=[ALGORITHM], options={"require": ["sub", "exp", "iat"]})
+        if not isinstance(payload.get("sub"), str) or not payload["sub"]:
+            raise InvalidTokenError("Invalid subject")
+        if not isinstance(payload.get("role"), str) or not payload["role"]:
+            raise InvalidTokenError("Invalid role")
         return payload
     except InvalidTokenError:
         raise HTTPException(401, "Invalid or expired token")
