@@ -64,6 +64,14 @@ def fetch_workflow_names(repo,token):
   raise ValueError("GitHub workflow listing exceeded verified limit")
  return names
 
+def is_main_ancestor(repo,sha,token):
+ """Allow current main HEAD or an earlier commit on main, but not unrelated refs."""
+ url=f"https://api.github.com/repos/{repo}/compare/{sha}...main"
+ req=urllib.request.Request(url,headers={"Authorization":f"Bearer {token}","Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
+ with urllib.request.urlopen(req,timeout=20) as response:
+  result=json.load(response)
+ return result.get("status") in ("ahead","identical")
+
 def main():
  repo=os.environ["GITHUB_REPOSITORY"]
  sha=os.environ.get("TARGET_RELEASE_SHA") or os.environ["GITHUB_SHA"]
@@ -75,8 +83,12 @@ def main():
   runs=fetch_all(repo,sha,token)
   configured=fetch_workflow_names(repo,token)
   report=evaluate(runs,sha,configured)
+  report['commit_on_main']=is_main_ancestor(repo,sha,token)
+  if not report['commit_on_main']:
+   report['ci_verdict']='BLOCKED'
  except (urllib.error.URLError,TimeoutError,ValueError,OSError) as exc:
   report=evaluate([],sha,[])
+  report["commit_on_main"]=False
   report["evidence_error"]=f"{type(exc).__name__}: evidence retrieval failed"
   report["ci_verdict"]="BLOCKED"
  out=Path("release-evidence")
@@ -87,7 +99,7 @@ def main():
  for name in sorted(REQUIRED):
   item=report["checks"].get(name,{})
   lines.append(f"| {name} | {item.get('status','missing')} | {item.get('conclusion','unverified')} | {item.get('url') or '—'} |")
- lines+=["",f"Configured workflow name mismatches: {', '.join(report['workflow_name_mismatches']) or 'none'}","This report checks only matching push runs for the exact commit; it does not verify database backups, actual deployment, or business approval."]
+ lines+=["",f"Selected commit on main history: {report.get(\'commit_on_main\',False)}",f"Configured workflow name mismatches: {', '.join(report['workflow_name_mismatches']) or 'none'}","This report checks only matching push runs for the exact commit; it does not verify database backups, actual deployment, or business approval."]
  (out/"consolidated.md").write_text("\n".join(lines)+"\n")
  print(json.dumps(report,indent=2))
  if report["ci_verdict"]!="PASS":sys.exit(1)
