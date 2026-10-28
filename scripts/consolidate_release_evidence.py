@@ -22,7 +22,7 @@ REQUIRED={
 def evaluate(runs, sha, configured_names=None):
  by_name={}
  for run in runs:
-  if run.get("head_sha")!=sha or run.get("event")!="push":
+  if run.get("head_sha")!=sha or run.get("event")!="push" or run.get("head_branch")!="main":
    continue
   if run.get("name") not in REQUIRED:
    continue
