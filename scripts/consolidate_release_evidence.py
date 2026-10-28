@@ -16,6 +16,14 @@ REQUIRED={
  "Full Stack Network Isolation",
  "Release Readiness Evidence",
 }
+REQUIRED_PATHS={
+ "Backend Browser E2E":".github/workflows/backend-browser-e2e.yml",
+ "CI":".github/workflows/ci.yml",
+ "Deployment Config":".github/workflows/deployment-config.yml",
+ "Docker Network Isolation":".github/workflows/docker-network-isolation.yml",
+ "Full Stack Network Isolation":".github/workflows/full-stack-network-isolation.yml",
+ "Release Readiness Evidence":".github/workflows/release-readiness.yml",
+}
 # Workflow names must be checked against the repository's actual configured set.
 # A missing or renamed required check blocks the automated verdict.
 
@@ -27,6 +35,9 @@ def evaluate(runs, sha, configured_names=None):
   if run.get("name") not in REQUIRED:
    continue
   name=run["name"]
+  workflow_path=(run.get("path") or "").split("@",1)[0]
+  if not (workflow_path==REQUIRED_PATHS[name] or workflow_path.endswith("/"+REQUIRED_PATHS[name])):
+   continue
   if name not in by_name or (run.get("run_number",0),run.get("run_attempt",0))>(by_name[name].get("run_number",0),by_name[name].get("run_attempt",0)):
    by_name[name]=run
  missing=sorted(REQUIRED-by_name.keys())
