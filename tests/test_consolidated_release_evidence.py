@@ -55,6 +55,7 @@ def test_evidence_api_failure_leaves_gate_blocked(monkeypatch,tmp_path):
  report=json.loads((tmp_path/"release-evidence/consolidated.json").read_text())
  assert report["ci_verdict"]=="BLOCKED"
  assert "evidence_error" in report
+ assert "Evidence retrieval error:" in (tmp_path/"release-evidence/consolidated.md").read_text()
  assert report["production_approved"] is False
 
 def test_explicit_release_sha_overrides_workflow_dispatch_head(monkeypatch,tmp_path):
