@@ -156,3 +156,26 @@ def test_unrelated_commit_blocks_release_even_with_successful_ci(monkeypatch,tmp
  assert report["ci_verdict"]=="BLOCKED"
  assert report["commit_on_main"] is False
  assert report["production_approved"] is False
+
+def test_latest_rerun_attempt_takes_precedence_over_older_success():
+ records=[run(name) for name in REQUIRED]
+ name=records[0]["name"]
+ prior=records[0].copy()
+ prior["run_number"]=9
+ prior["run_attempt"]=1
+ failed=records[0].copy()
+ failed["run_number"]=9
+ failed["run_attempt"]=2
+ failed["conclusion"]="failure"
+ records[0]=prior
+ result=evaluate(records+[failed],SHA)
+ assert result["ci_verdict"]=="BLOCKED"
+ assert result["not_successful"][name]=="failure"
+
+def test_successful_latest_rerun_can_clear_prior_failure():
+ records=[run(name) for name in REQUIRED]
+ previous=records[0].copy()
+ previous["conclusion"]="failure"
+ previous["run_attempt"]=1
+ records[0]["run_attempt"]=2
+ assert evaluate([previous]+records,SHA)["ci_verdict"]=="PASS"
