@@ -68,6 +68,7 @@ def test_explicit_release_sha_overrides_workflow_dispatch_head(monkeypatch,tmp_p
  monkeypatch.setenv("GH_TOKEN","synthetic-token")
  monkeypatch.setattr(gate,"fetch_all",lambda repo,sha,token:[run(name,sha=sha) for name in REQUIRED])
  monkeypatch.setattr(gate,"fetch_workflow_names",lambda repo,token:set(REQUIRED))
+ monkeypatch.setattr(gate,"is_main_ancestor",lambda repo,sha,token:True)
  gate.main()
  report=json.loads((tmp_path/"release-evidence/consolidated.json").read_text())
  assert report["release_sha"]==target
@@ -136,3 +137,22 @@ def test_push_from_non_main_branch_cannot_satisfy_release_gate():
  result=evaluate(records,SHA)
  assert result["ci_verdict"]=="BLOCKED"
  assert records[0]["name"] in result["missing"]
+
+def test_unrelated_commit_blocks_release_even_with_successful_ci(monkeypatch,tmp_path):
+ import json,pytest
+ import scripts.consolidate_release_evidence as gate
+ monkeypatch.chdir(tmp_path)
+ monkeypatch.setenv("GITHUB_REPOSITORY","example/project")
+ monkeypatch.setenv("GITHUB_SHA",SHA)
+ monkeypatch.delenv("TARGET_RELEASE_SHA",raising=False)
+ monkeypatch.setenv("GH_TOKEN","synthetic-token")
+ monkeypatch.setattr(gate,"fetch_all",lambda repo,sha,token:[run(name) for name in REQUIRED])
+ monkeypatch.setattr(gate,"fetch_workflow_names",lambda repo,token:set(REQUIRED))
+ monkeypatch.setattr(gate,"is_main_ancestor",lambda repo,sha,token:False)
+ with pytest.raises(SystemExit) as exc:
+  gate.main()
+ assert exc.value.code==1
+ report=json.loads((tmp_path/"release-evidence/consolidated.json").read_text())
+ assert report["ci_verdict"]=="BLOCKED"
+ assert report["commit_on_main"] is False
+ assert report["production_approved"] is False
