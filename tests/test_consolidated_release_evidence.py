@@ -32,10 +32,10 @@ def test_other_shas_and_pr_runs_do_not_count():
 
 def test_wrongly_named_workflow_blocks_release_even_with_successful_runs():
  records=[run(name) for name in REQUIRED]
- configured=set(REQUIRED)-{"Main CI"}
+ configured=set(REQUIRED)-{"CI"}
  result=evaluate(records,SHA,configured)
  assert result["ci_verdict"]=="BLOCKED"
- assert result["workflow_name_mismatches"]==["Main CI"]
+ assert result["workflow_name_mismatches"]==["CI"]
 
 def test_evidence_api_failure_leaves_gate_blocked(monkeypatch,tmp_path):
  import urllib.error
