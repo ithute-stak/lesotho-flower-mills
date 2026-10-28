@@ -192,3 +192,9 @@ def test_workflow_path_with_github_ref_suffix_is_accepted():
  records=[run(name) for name in REQUIRED]
  records[0]["path"]=records[0]["path"]+"@refs/heads/main"
  assert evaluate(records,SHA)["ci_verdict"]=="PASS"
+
+def test_backend_e2e_seed_has_required_ci_opt_in():
+ """The synthetic seeder refuses to run without CI=true."""
+ from pathlib import Path
+ workflow=(Path(__file__).resolve().parents[1]/".github/workflows/backend-browser-e2e.yml").read_text()
+ assert 'run: PYTHONPATH=backend python e2e/seed_backend.py\n        env:\n          CI: "true"' in workflow
