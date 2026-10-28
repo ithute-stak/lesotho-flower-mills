@@ -1,6 +1,7 @@
 """Consolidate GitHub workflow evidence without treating CI as deployment approval."""
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -61,7 +62,10 @@ def fetch_workflow_names(repo,token):
 
 def main():
  repo=os.environ["GITHUB_REPOSITORY"]
- sha=os.environ["GITHUB_SHA"]
+ sha=os.environ.get("TARGET_RELEASE_SHA") or os.environ["GITHUB_SHA"]
+ if not re.fullmatch(r"[0-9a-fA-F]{40}",sha):
+  raise ValueError("Release SHA must be an exact 40-character Git commit hash")
+ sha=sha.lower()
  token=os.environ["GH_TOKEN"]
  try:
   runs=fetch_all(repo,sha,token)
