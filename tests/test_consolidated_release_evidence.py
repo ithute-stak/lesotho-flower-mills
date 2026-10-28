@@ -1,9 +1,9 @@
-from scripts.consolidate_release_evidence import REQUIRED,evaluate
+from scripts.consolidate_release_evidence import REQUIRED,REQUIRED_PATHS,evaluate
 
 SHA="a"*40
 
 def run(name,status="completed",conclusion="success",sha=SHA,event="push"):
- return {"name":name,"status":status,"conclusion":conclusion,"head_sha":sha,"event":event,"head_branch":"main","run_number":2,"run_attempt":1,"html_url":"https://github.com/example/actions/runs/1"}
+ return {"name":name,"status":status,"conclusion":conclusion,"head_sha":sha,"event":event,"head_branch":"main","path":REQUIRED_PATHS[name],"run_number":2,"run_attempt":1,"html_url":"https://github.com/example/actions/runs/1"}
 
 def test_all_required_exact_sha_push_runs_can_pass():
  result=evaluate([run(name) for name in REQUIRED],SHA)
@@ -180,3 +180,15 @@ def test_successful_latest_rerun_can_clear_prior_failure():
  previous["run_attempt"]=1
  records[0]["run_attempt"]=2
  assert evaluate([previous]+records,SHA)["ci_verdict"]=="PASS"
+
+def test_duplicate_workflow_name_from_wrong_path_cannot_approve_release():
+ records=[run(name) for name in REQUIRED]
+ records[0]["path"]=".github/workflows/other-ci.yml"
+ result=evaluate(records,SHA)
+ assert result["ci_verdict"]=="BLOCKED"
+ assert records[0]["name"] in result["missing"]
+
+def test_workflow_path_with_github_ref_suffix_is_accepted():
+ records=[run(name) for name in REQUIRED]
+ records[0]["path"]=records[0]["path"]+"@refs/heads/main"
+ assert evaluate(records,SHA)["ci_verdict"]=="PASS"
