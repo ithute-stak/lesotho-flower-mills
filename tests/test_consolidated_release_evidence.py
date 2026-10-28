@@ -109,3 +109,23 @@ def test_workflow_listing_overflow_blocks(monkeypatch):
  monkeypatch.setattr(gate.urllib.request,"urlopen",lambda *args,**kwargs:Response())
  with pytest.raises(ValueError,match="listing exceeded"):
   gate.fetch_workflow_names("example/project","synthetic-token")
+
+def test_required_workflow_names_match_workflow_files():
+ """Avoid a silently blocked release caused by renamed workflow headers."""
+ from pathlib import Path
+ import re
+ workflow_paths={
+  "CI":".github/workflows/ci.yml",
+  "Backend Browser E2E":".github/workflows/backend-browser-e2e.yml",
+  "Deployment Config":".github/workflows/deployment-config.yml",
+  "Docker Network Isolation":".github/workflows/docker-network-isolation.yml",
+  "Full Stack Network Isolation":".github/workflows/full-stack-network-isolation.yml",
+  "Release Readiness Evidence":".github/workflows/release-readiness.yml",
+ }
+ assert set(workflow_paths)==REQUIRED
+ root=Path(__file__).resolve().parents[1]
+ for expected,path in workflow_paths.items():
+  text=(root/path).read_text()
+  match=re.search(r"^name:\\s*(.+?)\\s*$",text,re.MULTILINE)
+  assert match, f"Missing workflow name in {path}"
+  assert match.group(1).strip('"\\'')==expected, f"Incorrect workflow name in {path}"
