@@ -83,3 +83,29 @@ def test_malformed_release_sha_rejected(monkeypatch):
  monkeypatch.setenv("GH_TOKEN","synthetic-token")
  with pytest.raises(ValueError,match="40-character"):
   gate.main()
+
+def test_run_pagination_overflow_blocks_instead_of_silent_partial_pass(monkeypatch):
+ import io,json,pytest
+ import scripts.consolidate_release_evidence as gate
+ class Response:
+  def __enter__(self):return self
+  def __exit__(self,*args):pass
+  def read(self,*args):return self.body.read(*args)
+  def __init__(self):
+   self.body=io.BytesIO(json.dumps({"workflow_runs":[{"name":"synthetic"}]*100}).encode())
+ monkeypatch.setattr(gate.urllib.request,"urlopen",lambda *args,**kwargs:Response())
+ with pytest.raises(ValueError,match="pagination exceeded"):
+  gate.fetch_all("example/project",SHA,"synthetic-token")
+
+def test_workflow_listing_overflow_blocks(monkeypatch):
+ import io,json,pytest
+ import scripts.consolidate_release_evidence as gate
+ class Response:
+  def __enter__(self):return self
+  def __exit__(self,*args):pass
+  def read(self,*args):return self.body.read(*args)
+  def __init__(self):
+   self.body=io.BytesIO(json.dumps({"workflows":[{"name":"synthetic","state":"active"}]*100}).encode())
+ monkeypatch.setattr(gate.urllib.request,"urlopen",lambda *args,**kwargs:Response())
+ with pytest.raises(ValueError,match="listing exceeded"):
+  gate.fetch_workflow_names("example/project","synthetic-token")
