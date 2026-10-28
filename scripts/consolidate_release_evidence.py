@@ -47,6 +47,8 @@ def fetch_all(repo,sha,token):
    batch=json.load(response).get("workflow_runs",[])
   runs.extend(batch)
   if len(batch)<100:break
+ else:
+  raise ValueError("GitHub workflow run pagination exceeded verified limit")
  return runs
 
 def fetch_workflow_names(repo,token):
@@ -58,6 +60,8 @@ def fetch_workflow_names(repo,token):
    batch=json.load(response).get("workflows",[])
   names.update(w.get("name") for w in batch if w.get("state")=="active" and w.get("name"))
   if len(batch)<100:break
+ else:
+  raise ValueError("GitHub workflow listing exceeded verified limit")
  return names
 
 def main():
